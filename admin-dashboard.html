@@ -228,13 +228,18 @@
     panelSection.style.display = 'none';
     logoutBtn.style.display = 'none';
     loginSection.style.display = 'block';
+    if (refreshTimer) clearInterval(refreshTimer);
   });
+
+  let refreshTimer = null;
 
   async function enterPanel(){
     loginSection.style.display = 'none';
     panelSection.style.display = 'block';
     logoutBtn.style.display = 'inline-block';
     await loadAll();
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(loadAll, 15000); // auto-refresh every 15s
   }
 
   async function loadAll(){
