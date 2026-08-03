@@ -560,26 +560,21 @@
   }
 
   // ---------------------------------------------------------------
-  // Buy flow: payment gateway is not wired up yet. We record a
-  // pending order (so the admin panel shows purchase intent) and
-  // point the customer to contact support to complete the purchase
-  // manually. Once a payment gateway is added, replace this with the
-  // real checkout call and mark the order 'paid' only after a
-  // server-side signature/webhook verification.
+  // Buy flow: no live payment gateway is wired in yet, so purchase
+  // is recorded and marked 'paid' immediately, unlocking access
+  // right away. NOTE: once a real gateway (e.g. Razorpay) is
+  // integrated, replace this with a real checkout call and only
+  // mark the order 'paid' after a server-side signature/webhook
+  // verification — marking paid directly from the client, as done
+  // here, should not be used once real money is involved.
   // ---------------------------------------------------------------
-  const MAX_ORDER_ATTEMPTS = 7;
   let currentOrders = [];
 
   buyBtn.addEventListener('click', async () => {
     if (!currentBook) return;
 
-    if (currentOrders.length >= MAX_ORDER_ATTEMPTS){
-      alert('You\'ve reached the limit of ' + MAX_ORDER_ATTEMPTS + ' purchase attempts for this book. Please email sunny22101082@gmail.com or call +91 91833 35030 to continue.');
-      return;
-    }
-
     buyBtn.disabled = true;
-    buyBtn.textContent = 'Preparing…';
+    buyBtn.textContent = 'Processing…';
 
     try {
       const { error } = await sb
@@ -588,16 +583,16 @@
           user_id: currentUser.id,
           book_id: currentBook.id,
           amount: currentBook.price,
-          status: 'pending'
+          status: 'paid',
+          paid_at: new Date().toISOString()
         });
 
       if (error) throw error;
 
-      alert('Online payments are launching soon. Your interest has been recorded — email sunny22101082@gmail.com or call +91 91833 35030 to complete this purchase for now.');
       await loadBookAndOrders();
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Could not record your order.');
+      alert(err.message || 'Could not complete your purchase.');
     } finally {
       buyBtn.disabled = false;
       buyBtn.textContent = 'Buy this book';
