@@ -177,8 +177,8 @@
 </main>
 
 <script>
-  const SUPABASE_URL = "https://irivevwtwjhsaetfbmud.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_xOeHwYm4Rh_W3Vn4P03qZg_aYT5rKsa";
+  const SUPABASE_URL = "https://okntkemddqgqwzwyqqme.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_cy5XMZlJtaSuWdPHl6Ak-g_KlACu7zg";
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let allOrders = [];
@@ -238,6 +238,9 @@
   }
 
   async function loadAll(){
+    document.getElementById('orders-body').innerHTML = '<tr><td colspan="6" class="empty-row">Loading orders…</td></tr>';
+    document.getElementById('users-body').innerHTML = '<tr><td colspan="4" class="empty-row">Loading users…</td></tr>';
+
     const { data: orders, error: oErr } = await sb
       .from('orders')
       .select('*, books(title), profiles(email, full_name)')
