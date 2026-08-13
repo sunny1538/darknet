@@ -1,351 +1,626 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>The Bindery — Admin</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CircuitBazaar — Admin</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <style>
-  :root{
-    --ink:#14201a; --ink-panel:#1b2a22; --paper:#f3ead9;
-    --gold:#c9a24b; --gold-soft:#e2c887;
-    --burgundy:#7d2e2e; --ok:#3a6b4a; --err:#a3402f;
-    --text-muted:#93a596; --line:rgba(201,162,75,.18);
-  }
-  *{box-sizing:border-box;}
-  body{ margin:0; min-height:100vh; background:var(--ink); color:var(--paper); font-family:'Inter',sans-serif; }
-  header{
-    display:flex; align-items:center; justify-content:space-between; padding:20px 5vw;
-    border-bottom:1px solid var(--line);
-  }
-  .brand{ display:flex; align-items:center; gap:12px; }
-  .brand-mark{
-    width:32px; height:32px; border:1.5px solid var(--gold); border-radius:3px;
-    display:flex; align-items:center; justify-content:center; font-family:'Playfair Display',serif;
-    font-weight:700; color:var(--gold); font-size:15px; transform:rotate(-2deg);
-  }
-  .brand-name{ font-family:'Playfair Display',serif; font-size:18px; }
-  .brand-sub{ font-size:10.5px; letter-spacing:2.5px; text-transform:uppercase; color:var(--gold-soft); }
-  #logout-btn{
-    background:transparent; border:1px solid rgba(243,234,217,.3); color:var(--paper);
-    padding:8px 14px; border-radius:20px; font-size:12.5px; cursor:pointer; display:none;
-  }
-  #logout-btn:hover{ border-color:var(--gold); color:var(--gold-soft); }
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#0B0E11; --surface:#12171C; --surface-raised:#171D24; --line:#232B32;
+  --copper:#B87333; --copper-bright:#D6924F; --trace:#4FD1C5;
+  --text:#E7ECEF; --muted:#8A96A3; --danger:#E8604C; --radius:3px;
+}
+*{box-sizing:border-box;}
+body{margin:0; background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; line-height:1.5;}
+h1,h2,h3{font-family:'JetBrains Mono',monospace; letter-spacing:-0.01em;}
+.data,.price{font-family:'IBM Plex Mono',monospace;}
+button, input, textarea, select{font-family:inherit;}
+button{cursor:pointer;}
+:focus-visible{outline:2px solid var(--trace); outline-offset:2px;}
+.wrap{max-width:1180px; margin:0 auto; padding:0 24px;}
 
-  main{ max-width:1080px; margin:0 auto; padding:5vw; }
+header{border-bottom:1px solid var(--line); padding:18px 0; position:sticky; top:0; background:rgba(11,14,17,0.92); backdrop-filter:blur(8px); z-index:20;}
+.nav{display:flex; align-items:center; justify-content:space-between;}
+.brand{display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:1.1rem;}
+.brand .dot{width:8px; height:8px; border-radius:50%; background:var(--copper-bright); box-shadow:0 0 8px var(--copper-bright);}
+.brand .sub{color:var(--trace); font-weight:600;}
+.env-tag{font-family:'IBM Plex Mono',monospace; font-size:0.68rem; color:var(--muted); border:1px solid var(--line); padding:3px 8px; border-radius:2px; text-transform:uppercase; letter-spacing:0.06em;}
 
-  /* ---- Login ---- */
-  #login-section{ max-width:400px; margin:8vh auto; }
-  .login-card{
-    background:var(--paper); color:#2b2420; border-radius:10px; padding:36px 32px;
-    box-shadow:0 30px 60px -20px rgba(0,0,0,.55);
-  }
-  .login-card h1{ font-family:'Playfair Display',serif; font-size:24px; margin:0 0 4px; }
-  .login-card p{ margin:0 0 22px; font-size:13px; color:#6b6255; }
-  .field{ margin-bottom:14px; }
-  .field label{ display:block; font-size:12px; font-weight:600; color:#6b6255; margin-bottom:6px; }
-  .field input{
-    width:100%; padding:11px 13px; border-radius:6px; border:1px solid #d8cba9;
-    background:#fffdf8; font-size:14.5px; color:#2b2420;
-  }
-  .field input:focus{ outline:2px solid var(--gold); outline-offset:1px; }
-  .primary-btn{
-    width:100%; padding:12px; border:none; border-radius:6px; background:var(--burgundy); color:#fff;
-    font-size:14.5px; font-weight:600; cursor:pointer; margin-top:6px;
-  }
-  .primary-btn:hover{ background:#5f2020; }
-  .primary-btn:disabled{ opacity:.6; cursor:wait; }
-  .msg{ font-size:13px; margin-top:12px; padding:9px 12px; border-radius:6px; display:none; }
-  .msg.show{ display:block; }
-  .msg.err{ background:#fbe8e4; color:var(--err); }
+.setup-warning{background:rgba(232,96,76,0.08); border:1px solid rgba(232,96,76,0.3); color:var(--danger); padding:14px 18px; border-radius:var(--radius); font-size:0.84rem; margin:24px 0;}
 
-  /* ---- Dashboard ---- */
-  #panel-section{ display:none; }
-  .panel-title{ font-family:'Playfair Display',serif; font-size:28px; margin:0 0 30px; }
+.admin-login{max-width:360px; margin:100px auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:28px;}
+.admin-login h2{margin-top:0; font-size:1.1rem;}
+.form-field{margin-bottom:16px;}
+.form-field label{display:block; font-size:0.78rem; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;}
+.form-field input, .form-field textarea{width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:10px 12px; border-radius:var(--radius); font-size:0.9rem;}
+.form-field input:focus, .form-field textarea:focus{border-color:var(--trace);}
+.form-row{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+.btn{border-radius:var(--radius); padding:11px 20px; font-size:0.86rem; font-weight:600; border:1px solid transparent; display:inline-flex; align-items:center; gap:8px;}
+.btn-primary{background:var(--copper); color:#0B0E11;}
+.btn-primary:hover{background:var(--copper-bright);}
+.btn-ghost{border-color:var(--line); color:var(--text); background:transparent;}
+.btn-ghost:hover{border-color:var(--trace); color:var(--trace);}
+.status-msg{font-size:0.85rem; margin-top:14px; padding:10px 12px; border-radius:var(--radius); display:none;}
+.status-msg.ok{display:block; background:rgba(79,209,197,0.1); border:1px solid rgba(79,209,197,0.35); color:var(--trace);}
+.status-msg.err{display:block; background:rgba(232,96,76,0.1); border:1px solid rgba(232,96,76,0.35); color:var(--danger);}
 
-  .stats-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:38px; }
-  .stat-card{
-    background:var(--ink-panel); border:1px solid var(--line); border-radius:10px; padding:20px;
-  }
-  .stat-card .label{ font-size:10.5px; letter-spacing:1.6px; text-transform:uppercase; color:var(--text-muted); }
-  .stat-card .value{ font-family:'Playfair Display',serif; font-size:26px; margin-top:8px; color:var(--gold-soft); }
+.admin-shell{padding:32px 0 80px;}
+.admin-bar{display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; flex-wrap:wrap; gap:12px;}
+.admin-tabs{display:flex; gap:8px;}
+.tab-btn{background:transparent; border:1px solid var(--line); color:var(--muted); padding:9px 18px; border-radius:var(--radius); font-size:0.84rem;}
+.tab-btn.active{border-color:var(--trace); color:var(--trace);}
 
-  .section-block{ margin-bottom:44px; }
-  .section-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-  .section-head h2{ font-family:'Playfair Display',serif; font-size:19px; font-weight:600; margin:0; }
-  .search-input{
-    padding:8px 12px; border-radius:20px; border:1px solid var(--line); background:var(--ink-panel);
-    color:var(--paper); font-size:12.5px; width:220px;
-  }
-  .search-input::placeholder{ color:var(--text-muted); }
+.panel-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
+.panel-head h3{margin:0; font-size:1.05rem;}
 
-  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
-  thead th{
-    text-align:left; padding:10px 12px; font-size:10.5px; letter-spacing:1.2px; text-transform:uppercase;
-    color:var(--text-muted); border-bottom:1px solid var(--line); font-weight:600;
-  }
-  tbody td{ padding:12px 12px; border-bottom:1px solid rgba(201,162,75,.08); vertical-align:middle; }
-  tbody tr:hover{ background:rgba(201,162,75,.04); }
-  .mono{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-muted); }
+.table-wrap{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow-x:auto; margin-bottom:32px;}
+table{width:100%; border-collapse:collapse; font-size:0.83rem;}
+th{text-align:left; padding:12px 14px; color:var(--muted); font-weight:500; border-bottom:1px solid var(--line); white-space:nowrap; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.04em;}
+td{padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+.badge{padding:3px 9px; border-radius:12px; font-size:0.7rem; font-weight:600; display:inline-block;}
+.badge.pending{background:rgba(184,115,51,0.15); color:var(--copper-bright);}
+.badge.paid{background:rgba(79,209,197,0.15); color:var(--trace);}
+.badge.cancelled{background:rgba(232,96,76,0.15); color:var(--danger);}
+.badge.blocked{background:rgba(232,96,76,0.15); color:var(--danger);}
+.badge.active{background:rgba(79,209,197,0.15); color:var(--trace);}
+.mini-btn{background:transparent; border:1px solid var(--line); color:var(--text); padding:5px 10px; border-radius:2px; font-size:0.74rem; margin-right:6px;}
+.mini-btn.danger{border-color:var(--danger); color:var(--danger);}
+.mini-btn.danger:hover{background:var(--danger); color:#0B0E11;}
+.mini-btn.ok:hover{background:var(--trace); color:#0B0E11; border-color:var(--trace);}
+.admin-empty{color:var(--muted); padding:40px; text-align:center; font-size:0.9rem;}
+.prod-thumb{width:44px; height:44px; border-radius:var(--radius); object-fit:cover; background:var(--surface-raised); border:1px solid var(--line); display:block;}
+.prod-thumb-placeholder{width:44px; height:44px; border-radius:var(--radius); background:var(--surface-raised); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:0.65rem;}
+.compare-price{color:var(--muted); text-decoration:line-through; font-size:0.78rem;}
+.image-preview{width:100%; max-height:140px; object-fit:contain; background:var(--surface-raised); border:1px solid var(--line); border-radius:var(--radius); margin-top:8px; display:none;}
+.image-preview.show{display:block;}
 
-  .status-pill{ padding:4px 11px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; }
-  .status-pill.paid{ background:rgba(58,107,74,.25); color:#8fd3a4; }
-  .status-pill.pending{ background:rgba(201,162,75,.2); color:var(--gold-soft); }
-  .status-pill.failed{ background:rgba(163,64,47,.2); color:#e59a8b; }
+.stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px;}
+@media (max-width:760px){ .stat-row{grid-template-columns:repeat(2,1fr);} }
+.stat-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px;}
+.stat-card .label{font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;}
+.stat-card .value{font-family:'JetBrains Mono',monospace; font-size:1.4rem; font-weight:800;}
 
-  .status-select{
-    background:var(--ink); color:var(--paper); border:1px solid var(--line); border-radius:6px;
-    padding:5px 8px; font-size:12px; cursor:pointer;
-  }
+.modal-overlay{position:fixed; inset:0; background:rgba(11,14,17,0.7); z-index:80; display:none; align-items:center; justify-content:center; padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:26px; width:100%; max-width:440px; max-height:90vh; overflow-y:auto;}
+.modal h3{margin-top:0;}
 
-  .empty-row{ text-align:center; padding:30px; color:var(--text-muted); font-size:13px; }
+/* ---------- Mobile pass ---------- */
+@media (max-width:640px){
+  .wrap{padding:0 16px;}
+  header{padding:14px 0;}
+  .brand{font-size:1rem;}
+  .env-tag{font-size:0.62rem; padding:2px 6px;}
+  .admin-login{margin:60px auto; padding:22px; max-width:calc(100% - 32px);}
+  .admin-shell{padding:24px 0 60px;}
+  .admin-bar{margin-bottom:20px;}
+  .admin-tabs{gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:2px; width:100%;}
+  .tab-btn{padding:9px 14px; font-size:0.8rem; white-space:nowrap; flex-shrink:0;}
+  .panel-head{flex-wrap:wrap; gap:10px;}
+  .panel-head h3{font-size:0.98rem;}
+  .stat-row{gap:10px;}
+  .stat-card{padding:13px;}
+  .stat-card .value{font-size:1.15rem;}
+  table{font-size:0.78rem;}
+  th, td{padding:9px 10px;}
+  .btn{min-height:44px;}
+  .mini-btn{padding:7px 10px; font-size:0.76rem; margin-bottom:4px;}
+  .form-row{grid-template-columns:1fr; gap:0;}
+  .form-field input, .form-field textarea, .form-field select{font-size:16px; padding:11px 12px;}
+  .modal{padding:20px; max-height:85vh;}
+}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="brand">
-    <div class="brand-mark">B</div>
-    <div>
-      <div class="brand-name">The Bindery</div>
-      <div class="brand-sub">Admin Console</div>
-    </div>
+  <div class="nav wrap">
+    <div class="brand"><span class="dot"></span>Circuit<span class="sub">Bazaar</span> Admin</div>
+    <span class="env-tag" id="envTag">supabase: not connected</span>
   </div>
-  <button id="logout-btn">Sign out</button>
 </header>
 
-<main>
+<div class="wrap">
+  <div id="setupWarning" class="setup-warning" style="display:none;">
+    Supabase isn't reachable. Check <code>supabase-config.js</code> has the right URL/key, and that this file sits next to it on the server.
+  </div>
+</div>
 
-  <!-- LOGIN -->
-  <section id="login-section">
-    <div class="login-card">
-      <h1>Admin sign-in</h1>
-      <p>Restricted to accounts flagged as admin in Supabase.</p>
-      <div class="field">
-        <label for="email">Email</label>
-        <input id="email" type="email" placeholder="admin@example.com" />
+<div id="loginView" class="admin-login">
+  <h2>Admin sign in</h2>
+  <div class="form-field"><label for="al-email">Email</label><input id="al-email" type="email"></div>
+  <div class="form-field"><label for="al-pass">Password</label><input id="al-pass" type="password"></div>
+  <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="adminLogin()">Sign in</button>
+  <div class="status-msg" id="loginStatus"></div>
+  <p style="color:var(--muted); font-size:0.75rem; margin-top:14px;">Admin accounts are created in Supabase Auth (Authentication → Users) — this form doesn't self-register.</p>
+</div>
+
+<div id="panelView" style="display:none;">
+  <div class="admin-shell wrap">
+    <div class="admin-bar">
+      <div class="admin-tabs">
+        <button class="tab-btn active" id="tabOverviewBtn" onclick="showTab('overview')">Overview</button>
+        <button class="tab-btn" id="tabProductsBtn" onclick="showTab('products')">Products</button>
+        <button class="tab-btn" id="tabCouponsBtn" onclick="showTab('coupons')">Coupons</button>
+        <button class="tab-btn" id="tabOrdersBtn" onclick="showTab('orders')">Orders</button>
+        <button class="tab-btn" id="tabBuyersBtn" onclick="showTab('buyers')">Buyers</button>
+        <button class="tab-btn" id="tabMessagesBtn" onclick="showTab('messages')">Messages<span id="msgUnreadDot" style="display:none; margin-left:6px; width:7px; height:7px; border-radius:50%; background:var(--danger); vertical-align:middle;"></span></button>
       </div>
-      <div class="field">
-        <label for="password">Password</label>
-        <input id="password" type="password" placeholder="Password" />
-      </div>
-      <button class="primary-btn" id="login-btn">Sign in</button>
-      <div class="msg" id="login-msg"></div>
-    </div>
-  </section>
-
-  <!-- PANEL -->
-  <section id="panel-section">
-    <h1 class="panel-title">Overview</h1>
-
-    <div class="stats-row">
-      <div class="stat-card"><div class="label">Total users</div><div class="value" id="stat-users">—</div></div>
-      <div class="stat-card"><div class="label">Paid orders</div><div class="value" id="stat-paid">—</div></div>
-      <div class="stat-card"><div class="label">Pending orders</div><div class="value" id="stat-pending">—</div></div>
-      <div class="stat-card"><div class="label">Revenue</div><div class="value" id="stat-revenue">—</div></div>
+      <button class="btn btn-ghost" onclick="adminLogout()">Sign out</button>
     </div>
 
-    <div class="section-block">
-      <div class="section-head">
-        <h2>Orders</h2>
-        <input class="search-input" id="order-search" placeholder="Search by email…" />
+    <!-- OVERVIEW -->
+    <div id="overviewTab">
+      <div class="stat-row">
+        <div class="stat-card"><div class="label">Total orders</div><div class="value" id="statOrders">—</div></div>
+        <div class="stat-card"><div class="label">Pending payment</div><div class="value" id="statPending">—</div></div>
+        <div class="stat-card"><div class="label">Buyers</div><div class="value" id="statBuyers">—</div></div>
+        <div class="stat-card"><div class="label">Blocked buyers</div><div class="value" id="statBlocked">—</div></div>
       </div>
-      <table>
-        <thead>
-          <tr><th>Date</th><th>Customer</th><th>Book</th><th>Amount</th><th>Payment ID</th><th>Status</th></tr>
-        </thead>
-        <tbody id="orders-body"></tbody>
-      </table>
+      <p style="color:var(--muted); font-size:0.85rem;">Use the tabs above to manage the live catalog, review orders, or block a buyer.</p>
     </div>
 
-    <div class="section-block">
-      <div class="section-head">
-        <h2>Users</h2>
-        <input class="search-input" id="user-search" placeholder="Search by email…" />
+    <!-- PRODUCTS -->
+    <div id="productsTab" style="display:none;">
+      <div class="panel-head"><h3>Products</h3><button class="btn btn-primary" onclick="openProductModal()">+ Add product</button></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Image</th><th>Name</th><th>Tag</th><th>Price</th><th>Cut-off</th><th>Stock</th><th></th></tr></thead>
+          <tbody id="productsBody"></tbody>
+        </table>
+        <div class="admin-empty" id="productsEmpty" style="display:none;">No products yet — add your first one.</div>
       </div>
-      <table>
-        <thead>
-          <tr><th>Joined</th><th>Name</th><th>Email</th><th>Admin</th></tr>
-        </thead>
-        <tbody id="users-body"></tbody>
-      </table>
     </div>
-  </section>
 
-</main>
+    <!-- COUPONS -->
+    <div id="couponsTab" style="display:none;">
+      <div class="panel-head"><h3>Coupons</h3><button class="btn btn-primary" onclick="openCouponModal()">+ Add coupon</button></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Code</th><th>Discount</th><th>Expires</th><th>Usage</th><th>Status</th><th></th></tr></thead>
+          <tbody id="couponsBody"></tbody>
+        </table>
+        <div class="admin-empty" id="couponsEmpty" style="display:none;">No coupons yet — add your first one.</div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div id="ordersTab" style="display:none;">
+      <div class="panel-head"><h3>Orders</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Order</th><th>Buyer</th><th>Items</th><th>Total</th><th>Status</th><th>Placed</th><th></th></tr></thead>
+          <tbody id="ordersBody"></tbody>
+        </table>
+        <div class="admin-empty" id="ordersEmpty" style="display:none;">No orders yet.</div>
+      </div>
+    </div>
+
+    <!-- BUYERS -->
+    <div id="buyersTab" style="display:none;">
+      <div class="panel-head"><h3>Buyers</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Orders</th><th>Status</th><th></th></tr></thead>
+          <tbody id="buyersBody"></tbody>
+        </table>
+        <div class="admin-empty" id="buyersEmpty" style="display:none;">No buyers yet.</div>
+      </div>
+    </div>
+
+    <!-- MESSAGES -->
+    <div id="messagesTab" style="display:none;">
+      <div class="panel-head"><h3>Contact messages</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>From</th><th>Message</th><th>Received</th><th></th></tr></thead>
+          <tbody id="messagesBody"></tbody>
+        </table>
+        <div class="admin-empty" id="messagesEmpty" style="display:none;">No messages yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Coupon add/edit modal -->
+<div class="modal-overlay" id="couponModalOverlay">
+  <div class="modal">
+    <h3 id="couponModalTitle">Add coupon</h3>
+    <input type="hidden" id="cm-id">
+    <div class="form-field"><label for="cm-code">Code</label><input id="cm-code" style="text-transform:uppercase;" placeholder="e.g. WELCOME10"></div>
+    <div class="form-row">
+      <div class="form-field">
+        <label for="cm-type">Discount type</label>
+        <select id="cm-type" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:10px 12px; border-radius:var(--radius); font-size:0.9rem;">
+          <option value="percent">Percent off</option>
+          <option value="fixed">Fixed amount off (₹)</option>
+        </select>
+      </div>
+      <div class="form-field"><label for="cm-value">Value</label><input id="cm-value" type="number" min="0" step="1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label for="cm-expiry">Expires (optional)</label><input id="cm-expiry" type="date"></div>
+      <div class="form-field"><label for="cm-limit">Usage limit (optional)</label><input id="cm-limit" type="number" min="1" step="1" placeholder="Unlimited"></div>
+    </div>
+    <div class="status-msg" id="couponModalStatus"></div>
+    <div style="display:flex; gap:10px; margin-top:8px;">
+      <button class="btn btn-primary" onclick="saveCoupon()">Save</button>
+      <button class="btn btn-ghost" onclick="closeCouponModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Product add/edit modal -->
+<div class="modal-overlay" id="productModalOverlay">
+  <div class="modal">
+    <h3 id="productModalTitle">Add product</h3>
+    <input type="hidden" id="pm-id">
+    <div class="form-field"><label for="pm-name">Name</label><input id="pm-name"></div>
+    <div class="form-field"><label for="pm-desc">Description</label><textarea id="pm-desc" rows="2"></textarea></div>
+    <div class="form-row">
+      <div class="form-field"><label for="pm-price">Price (₹)</label><input id="pm-price" type="number" min="0" step="1"></div>
+      <div class="form-field"><label for="pm-compare">Cut-off price (₹, optional)</label><input id="pm-compare" type="number" min="0" step="1" placeholder="e.g. original MRP"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label for="pm-stock">Stock</label><input id="pm-stock" type="number" min="0" step="1"></div>
+      <div class="form-field"><label for="pm-tag">Tag / category</label><input id="pm-tag" placeholder="e.g. MCU, Sensor, Tools"></div>
+    </div>
+    <div class="form-field">
+      <label for="pm-image">Image URL (optional)</label>
+      <input id="pm-image" placeholder="https://…" oninput="previewProductImage()">
+      <img id="pm-image-preview" class="image-preview" alt="Preview" onload="this.classList.add('show')" onerror="this.classList.remove('show')">
+    </div>
+    <div class="status-msg" id="productModalStatus"></div>
+    <div style="display:flex; gap:10px; margin-top:8px;">
+      <button class="btn btn-primary" onclick="saveProduct()">Save</button>
+      <button class="btn btn-ghost" onclick="closeProductModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <script>
-  const SUPABASE_URL = "https://okntkemddqgqwzwyqqme.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_cy5XMZlJtaSuWdPHl6Ak-g_KlACu7zg";
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+document.getElementById("envTag").textContent = "supabase: " + (typeof supabaseReady !== "undefined" && supabaseReady ? "connected" : "not connected");
+document.getElementById("setupWarning").style.display = (typeof supabaseReady !== "undefined" && supabaseReady) ? "none" : "block";
 
-  let allOrders = [];
-  let allUsers = [];
-
-  const loginSection = document.getElementById('login-section');
-  const panelSection = document.getElementById('panel-section');
-  const logoutBtn = document.getElementById('logout-btn');
-  const loginBtn = document.getElementById('login-btn');
-  const loginMsg = document.getElementById('login-msg');
-
-  function showLoginMsg(text){
-    loginMsg.textContent = text;
-    loginMsg.className = 'msg show err';
+async function initAdmin(){
+  if (typeof supabaseReady === "undefined" || !supabaseReady) return;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session){
+    document.getElementById("loginView").style.display = "none";
+    document.getElementById("panelView").style.display = "block";
+    refreshAll();
+  } else {
+    document.getElementById("loginView").style.display = "block";
+    document.getElementById("panelView").style.display = "none";
+  }
+}
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 30000;
+function loginAttemptState(){
+  try { return JSON.parse(localStorage.getItem("cb_admin_login_state") || "{}"); }
+  catch(e){ return {}; }
+}
+function setLoginAttemptState(state){
+  localStorage.setItem("cb_admin_login_state", JSON.stringify(state));
+}
+async function adminLogin(){
+  const statusEl = document.getElementById("loginStatus");
+  if (typeof supabaseReady === "undefined" || !supabaseReady){
+    statusEl.className = "status-msg err"; statusEl.textContent = "Connect Supabase first (supabase-config.js)."; return;
   }
 
-  loginBtn.addEventListener('click', async () => {
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-    if (!email || !password){ showLoginMsg('Enter both email and password.'); return; }
+  // Client-side throttle against repeated login attempts. This is a
+  // convenience speed bump only — Supabase Auth already enforces its
+  // own rate limiting on sign-in attempts server-side regardless.
+  const state = loginAttemptState();
+  const now = Date.now();
+  if (state.lockedUntil && now < state.lockedUntil){
+    const waitSec = Math.ceil((state.lockedUntil - now) / 1000);
+    statusEl.className = "status-msg err";
+    statusEl.textContent = `Too many failed attempts — try again in ${waitSec}s.`;
+    return;
+  }
 
-    loginBtn.disabled = true;
-    loginMsg.className = 'msg';
-    try {
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-
-      const { data: profile, error: profErr } = await sb
-        .from('profiles').select('is_admin').eq('id', data.user.id).single();
-      if (profErr) throw profErr;
-
-      if (!profile || !profile.is_admin){
-        await sb.auth.signOut();
-        showLoginMsg('This account is not an admin. Ask an existing admin to flag it in Supabase.');
-        return;
-      }
-      await enterPanel();
-    } catch (err) {
-      showLoginMsg(err.message || 'Sign-in failed.');
-    } finally {
-      loginBtn.disabled = false;
+  const email = document.getElementById("al-email").value.trim();
+  const password = document.getElementById("al-pass").value;
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error){
+    const attempts = (state.attempts || 0) + 1;
+    const newState = { attempts };
+    if (attempts >= LOGIN_MAX_ATTEMPTS){
+      newState.attempts = 0;
+      newState.lockedUntil = now + LOGIN_LOCKOUT_MS;
+      statusEl.className = "status-msg err";
+      statusEl.textContent = `Too many failed attempts — try again in ${Math.ceil(LOGIN_LOCKOUT_MS/1000)}s.`;
+    } else {
+      statusEl.className = "status-msg err";
+      statusEl.textContent = error.message;
     }
+    setLoginAttemptState(newState);
+    return;
+  }
+  setLoginAttemptState({});
+  initAdmin();
+}
+async function adminLogout(){
+  if (typeof supabaseReady !== "undefined" && supabaseReady) await supabase.auth.signOut();
+  initAdmin();
+}
+
+function showTab(tab){
+  ["overview","products","coupons","orders","buyers","messages"].forEach(t=>{
+    document.getElementById(t+"Tab").style.display = (t===tab) ? "block" : "none";
+    document.getElementById("tab"+t.charAt(0).toUpperCase()+t.slice(1)+"Btn").classList.toggle("active", t===tab);
   });
+}
 
-  logoutBtn.addEventListener('click', async () => {
-    await sb.auth.signOut();
-    panelSection.style.display = 'none';
-    logoutBtn.style.display = 'none';
-    loginSection.style.display = 'block';
-    if (refreshTimer) clearInterval(refreshTimer);
-  });
+function money(n){ return "₹" + Number(n).toLocaleString("en-IN"); }
+function escapeAttr(s){ return String(s).replace(/"/g, "&quot;"); }
 
-  let refreshTimer = null;
+async function refreshAll(){
+  await Promise.all([loadProducts(), loadCoupons(), loadOrders(), loadBuyers(), loadMessages()]);
+}
 
-  async function enterPanel(){
-    loginSection.style.display = 'none';
-    panelSection.style.display = 'block';
-    logoutBtn.style.display = 'inline-block';
-    await loadAll();
-    if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(loadAll, 15000); // auto-refresh every 15s
+/* ---------- Coupons ---------- */
+let COUPONS_CACHE = [];
+async function loadCoupons(){
+  const body = document.getElementById("couponsBody");
+  const empty = document.getElementById("couponsEmpty");
+  const { data, error } = await supabase.from("coupons").select("*").order("id", { ascending: false });
+  if (error || !data || !data.length){ body.innerHTML = ""; empty.style.display = "block"; COUPONS_CACHE = []; return; }
+  empty.style.display = "none";
+  COUPONS_CACHE = data;
+  body.innerHTML = data.map(c => {
+    const expired = c.expires_at && new Date(c.expires_at) < new Date();
+    const limitReached = c.usage_limit !== null && c.used_count >= c.usage_limit;
+    const isLive = c.active && !expired && !limitReached;
+    return `
+    <tr>
+      <td class="data">${c.code}</td>
+      <td>${c.discount_type === 'percent' ? c.discount_value + '%' : money(c.discount_value)}</td>
+      <td class="data">${c.expires_at ? new Date(c.expires_at).toLocaleDateString('en-IN') : 'No expiry'}</td>
+      <td class="data">${c.used_count || 0}${c.usage_limit !== null ? ' / ' + c.usage_limit : ''}</td>
+      <td><span class="badge ${isLive ? 'active' : 'blocked'}">${isLive ? 'live' : (expired ? 'expired' : (limitReached ? 'limit reached' : 'off'))}</span></td>
+      <td>
+        <button class="mini-btn" onclick="openCouponModal(${c.id})">Edit</button>
+        <button class="mini-btn ${c.active ? 'danger' : 'ok'}" onclick="toggleCoupon(${c.id}, ${!c.active})">${c.active ? 'Turn off' : 'Turn on'}</button>
+        <button class="mini-btn danger" onclick="deleteCoupon(${c.id})">Delete</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+function openCouponModal(id){
+  document.getElementById("couponModalStatus").className = "status-msg";
+  document.getElementById("couponModalStatus").textContent = "";
+  if (id){
+    const c = COUPONS_CACHE.find(x => x.id === id);
+    document.getElementById("couponModalTitle").textContent = "Edit coupon";
+    document.getElementById("cm-id").value = c.id;
+    document.getElementById("cm-code").value = c.code;
+    document.getElementById("cm-type").value = c.discount_type;
+    document.getElementById("cm-value").value = c.discount_value;
+    document.getElementById("cm-expiry").value = c.expires_at ? c.expires_at.slice(0,10) : "";
+    document.getElementById("cm-limit").value = c.usage_limit ?? "";
+  } else {
+    document.getElementById("couponModalTitle").textContent = "Add coupon";
+    ["cm-id","cm-code","cm-value","cm-expiry","cm-limit"].forEach(id=>document.getElementById(id).value="");
+    document.getElementById("cm-type").value = "percent";
   }
-
-  async function loadAll(){
-    document.getElementById('orders-body').innerHTML = '<tr><td colspan="6" class="empty-row">Loading orders…</td></tr>';
-    document.getElementById('users-body').innerHTML = '<tr><td colspan="4" class="empty-row">Loading users…</td></tr>';
-
-    const { data: orders, error: oErr } = await sb
-      .from('orders')
-      .select('*, books(title), profiles(email, full_name)')
-      .order('created_at', { ascending: false });
-    if (oErr) console.error(oErr);
-    allOrders = orders || [];
-
-    const { data: users, error: uErr } = await sb
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (uErr) console.error(uErr);
-    allUsers = users || [];
-
-    renderStats();
-    renderOrders(allOrders);
-    renderUsers(allUsers);
-  }
-
-  function renderStats(){
-    document.getElementById('stat-users').textContent = allUsers.length;
-    const paid = allOrders.filter(o => o.status === 'paid');
-    const pending = allOrders.filter(o => o.status === 'pending');
-    document.getElementById('stat-paid').textContent = paid.length;
-    document.getElementById('stat-pending').textContent = pending.length;
-    const revenue = paid.reduce((sum, o) => sum + Number(o.amount || 0), 0);
-    document.getElementById('stat-revenue').textContent = '₹' + revenue.toLocaleString('en-IN');
-  }
-
-  function renderOrders(orders){
-    const body = document.getElementById('orders-body');
-    if (!orders.length){
-      body.innerHTML = '<tr><td colspan="6" class="empty-row">No orders yet.</td></tr>';
-      return;
-    }
-    body.innerHTML = orders.map(o => `
-      <tr>
-        <td>${new Date(o.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}</td>
-        <td>${o.profiles?.full_name || '—'}<br/><span class="mono">${o.profiles?.email || o.user_id}</span></td>
-        <td>${o.books?.title || '—'}</td>
-        <td>₹${o.amount}</td>
-        <td class="mono">${o.razorpay_payment_id || '—'}</td>
-        <td>
-          <select class="status-select" data-order-id="${o.id}" onchange="updateOrderStatus(this)">
-            <option value="pending" ${o.status === 'pending' ? 'selected' : ''}>pending</option>
-            <option value="paid" ${o.status === 'paid' ? 'selected' : ''}>paid</option>
-            <option value="failed" ${o.status === 'failed' ? 'selected' : ''}>failed</option>
-          </select>
-        </td>
-      </tr>
-    `).join('');
-  }
-
-  function renderUsers(users){
-    const body = document.getElementById('users-body');
-    if (!users.length){
-      body.innerHTML = '<tr><td colspan="4" class="empty-row">No users yet.</td></tr>';
-      return;
-    }
-    body.innerHTML = users.map(u => `
-      <tr>
-        <td>${new Date(u.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}</td>
-        <td>${u.full_name || '—'}</td>
-        <td class="mono">${u.email}</td>
-        <td>${u.is_admin ? '<span class="status-pill paid">Admin</span>' : '—'}</td>
-      </tr>
-    `).join('');
-  }
-
-  // exposed globally for the inline onchange handler
-  window.updateOrderStatus = async function(selectEl){
-    const orderId = selectEl.dataset.orderId;
-    const newStatus = selectEl.value;
-    const { error } = await sb.from('orders').update({ status: newStatus }).eq('id', orderId);
-    if (error){ alert('Could not update order: ' + error.message); return; }
-    await loadAll();
+  document.getElementById("couponModalOverlay").classList.add("open");
+}
+function closeCouponModal(){ document.getElementById("couponModalOverlay").classList.remove("open"); }
+async function saveCoupon(){
+  const statusEl = document.getElementById("couponModalStatus");
+  const id = document.getElementById("cm-id").value;
+  const limitVal = document.getElementById("cm-limit").value;
+  const expiryVal = document.getElementById("cm-expiry").value;
+  const payload = {
+    code: document.getElementById("cm-code").value.trim().toUpperCase(),
+    discount_type: document.getElementById("cm-type").value,
+    discount_value: Number(document.getElementById("cm-value").value),
+    usage_limit: limitVal ? Number(limitVal) : null,
+    expires_at: expiryVal ? new Date(expiryVal + "T23:59:59").toISOString() : null
   };
+  if (!payload.code || isNaN(payload.discount_value)){
+    statusEl.className = "status-msg err"; statusEl.textContent = "Code and value are required."; return;
+  }
+  const { error } = id
+    ? await supabase.from("coupons").update(payload).eq("id", id)
+    : await supabase.from("coupons").insert({ ...payload, active: true });
+  if (error){ statusEl.className = "status-msg err"; statusEl.textContent = error.message; return; }
+  closeCouponModal();
+  loadCoupons();
+}
+async function toggleCoupon(id, active){
+  await supabase.from("coupons").update({ active }).eq("id", id);
+  loadCoupons();
+}
+async function deleteCoupon(id){
+  if (!confirm("Delete this coupon?")) return;
+  await supabase.from("coupons").delete().eq("id", id);
+  loadCoupons();
+}
 
-  document.getElementById('order-search').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    renderOrders(allOrders.filter(o => (o.profiles?.email || '').toLowerCase().includes(q)));
-  });
-  document.getElementById('user-search').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    renderUsers(allUsers.filter(u => (u.email || '').toLowerCase().includes(q)));
-  });
+/* ---------- Products ---------- */
+let PRODUCTS_CACHE = [];
+async function loadProducts(){
+  const body = document.getElementById("productsBody");
+  const empty = document.getElementById("productsEmpty");
+  const { data, error } = await supabase.from("products").select("*").order("id");
+  if (error || !data || !data.length){ body.innerHTML = ""; empty.style.display = "block"; PRODUCTS_CACHE = []; return; }
+  empty.style.display = "none";
+  PRODUCTS_CACHE = data;
+  body.innerHTML = data.map(p => `
+    <tr>
+      <td>${p.image_url ? `<img class="prod-thumb" src="${escapeAttr(p.image_url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'prod-thumb-placeholder',textContent:'—'}))">` : `<div class="prod-thumb-placeholder">—</div>`}</td>
+      <td>${p.name}<br><span style="color:var(--muted); font-size:0.76rem;">${p.description || ''}</span></td>
+      <td>${p.tag || '—'}</td>
+      <td class="price">${money(p.price)}</td>
+      <td>${p.compare_price && p.compare_price > p.price ? `<span class="compare-price">${money(p.compare_price)}</span>` : '—'}</td>
+      <td class="data">${p.stock}</td>
+      <td>
+        <button class="mini-btn" onclick="openProductModal(${p.id})">Edit</button>
+        <button class="mini-btn danger" onclick="deleteProduct(${p.id})">Delete</button>
+      </td>
+    </tr>
+  `).join("");
+}
+function openProductModal(id){
+  document.getElementById("productModalStatus").className = "status-msg";
+  document.getElementById("productModalStatus").textContent = "";
+  if (id){
+    const p = PRODUCTS_CACHE.find(x => x.id === id);
+    document.getElementById("productModalTitle").textContent = "Edit product";
+    document.getElementById("pm-id").value = p.id;
+    document.getElementById("pm-name").value = p.name;
+    document.getElementById("pm-desc").value = p.description || "";
+    document.getElementById("pm-price").value = p.price;
+    document.getElementById("pm-compare").value = p.compare_price ?? "";
+    document.getElementById("pm-stock").value = p.stock;
+    document.getElementById("pm-tag").value = p.tag || "";
+    document.getElementById("pm-image").value = p.image_url || "";
+    previewProductImage();
+  } else {
+    document.getElementById("productModalTitle").textContent = "Add product";
+    ["pm-id","pm-name","pm-desc","pm-price","pm-compare","pm-stock","pm-tag","pm-image"].forEach(id=>document.getElementById(id).value="");
+    previewProductImage();
+  }
+  document.getElementById("productModalOverlay").classList.add("open");
+}
+function previewProductImage(){
+  const url = document.getElementById("pm-image").value.trim();
+  const img = document.getElementById("pm-image-preview");
+  if (url){ img.src = url; } else { img.removeAttribute("src"); img.classList.remove("show"); }
+}
+function closeProductModal(){ document.getElementById("productModalOverlay").classList.remove("open"); }
+async function saveProduct(){
+  const statusEl = document.getElementById("productModalStatus");
+  const id = document.getElementById("pm-id").value;
+  const compareVal = document.getElementById("pm-compare").value;
+  const imageVal = document.getElementById("pm-image").value.trim();
+  const payload = {
+    name: document.getElementById("pm-name").value.trim(),
+    description: document.getElementById("pm-desc").value.trim(),
+    price: Number(document.getElementById("pm-price").value),
+    compare_price: compareVal ? Number(compareVal) : null,
+    stock: Number(document.getElementById("pm-stock").value),
+    tag: document.getElementById("pm-tag").value.trim(),
+    image_url: imageVal || null
+  };
+  if (!payload.name || isNaN(payload.price)){
+    statusEl.className = "status-msg err"; statusEl.textContent = "Name and price are required."; return;
+  }
+  if (payload.compare_price !== null && isNaN(payload.compare_price)){
+    statusEl.className = "status-msg err"; statusEl.textContent = "Cut-off price must be a number."; return;
+  }
+  const { error } = id
+    ? await supabase.from("products").update(payload).eq("id", id)
+    : await supabase.from("products").insert(payload);
+  if (error){ statusEl.className = "status-msg err"; statusEl.textContent = error.message; return; }
+  closeProductModal();
+  loadProducts();
+}
+async function deleteProduct(id){
+  if (!confirm("Delete this product?")) return;
+  await supabase.from("products").delete().eq("id", id);
+  loadProducts();
+}
 
-  // Restore session on load
-  (async () => {
-    const { data: { session } } = await sb.auth.getSession();
-    if (session){
-      const { data: profile } = await sb.from('profiles').select('is_admin').eq('id', session.user.id).single();
-      if (profile && profile.is_admin){
-        await enterPanel();
-      } else {
-        await sb.auth.signOut();
-      }
-    }
-  })();
+/* ---------- Orders ---------- */
+async function loadOrders(){
+  const body = document.getElementById("ordersBody");
+  const empty = document.getElementById("ordersEmpty");
+  const { data, error } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
+  document.getElementById("statOrders").textContent = data ? data.length : "0";
+  document.getElementById("statPending").textContent = data ? data.filter(o=>o.status==='pending_payment').length : "0";
+  if (error || !data || !data.length){ body.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  body.innerHTML = data.map(o => `
+    <tr>
+      <td class="data">${o.id.slice(0,8)}</td>
+      <td>${o.buyer_name}<br><span style="color:var(--muted); font-size:0.76rem;">${o.buyer_email}</span></td>
+      <td>${(o.items || []).map(it => it.name + ' ×' + it.qty).join(', ')}</td>
+      <td class="price">${money(o.total)}</td>
+      <td><span class="badge ${o.status === 'paid' ? 'paid' : (o.status === 'cancelled' ? 'cancelled' : 'pending')}">${o.status}</span></td>
+      <td class="data">${new Date(o.created_at).toLocaleDateString('en-IN')}</td>
+      <td>
+        ${o.status !== 'paid' ? `<button class="mini-btn ok" onclick="updateOrderStatus('${o.id}','paid')">Mark paid</button>` : ''}
+        ${o.status !== 'cancelled' ? `<button class="mini-btn danger" onclick="updateOrderStatus('${o.id}','cancelled')">Cancel</button>` : ''}
+      </td>
+    </tr>
+  `).join("");
+}
+async function updateOrderStatus(id, status){
+  await supabase.from("orders").update({ status }).eq("id", id);
+  loadOrders();
+}
+
+/* ---------- Buyers ---------- */
+async function loadBuyers(){
+  const body = document.getElementById("buyersBody");
+  const empty = document.getElementById("buyersEmpty");
+  const { data, error } = await supabase.from("buyers").select("*").order("created_at", { ascending: false });
+  document.getElementById("statBuyers").textContent = data ? data.length : "0";
+  document.getElementById("statBlocked").textContent = data ? data.filter(b=>b.status==='blocked').length : "0";
+  if (error || !data || !data.length){ body.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  body.innerHTML = data.map(b => `
+    <tr>
+      <td>${b.name || '—'}</td>
+      <td>${b.email}</td>
+      <td>${b.phone || '—'}</td>
+      <td class="data">${b.order_count || 0}</td>
+      <td><span class="badge ${b.status === 'blocked' ? 'blocked' : 'active'}">${b.status}</span></td>
+      <td>
+        ${b.status === 'blocked'
+          ? `<button class="mini-btn ok" onclick="setBuyerStatus(${b.id},'active')">Unblock</button>`
+          : `<button class="mini-btn danger" onclick="setBuyerStatus(${b.id},'blocked')">Block</button>`}
+      </td>
+    </tr>
+  `).join("");
+}
+async function setBuyerStatus(id, status){
+  await supabase.from("buyers").update({ status }).eq("id", id);
+  loadBuyers();
+}
+
+/* ---------- Messages ---------- */
+async function loadMessages(){
+  const body = document.getElementById("messagesBody");
+  const empty = document.getElementById("messagesEmpty");
+  const { data, error } = await supabase.from("messages").select("*").order("created_at", { ascending: false });
+  const dot = document.getElementById("msgUnreadDot");
+  const unread = data ? data.filter(m => !m.read).length : 0;
+  dot.style.display = unread > 0 ? "inline-block" : "none";
+  if (error || !data || !data.length){ body.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  body.innerHTML = data.map(m => `
+    <tr style="${m.read ? '' : 'background:rgba(79,209,197,0.04);'}">
+      <td>${m.name}<br><a href="mailto:${m.email}" style="color:var(--trace); font-size:0.76rem; text-decoration:none;">${m.email}</a></td>
+      <td style="max-width:340px; white-space:pre-wrap;">${m.message}</td>
+      <td class="data">${new Date(m.created_at).toLocaleDateString('en-IN')}</td>
+      <td>
+        ${!m.read ? `<button class="mini-btn ok" onclick="markMessageRead(${m.id})">Mark read</button>` : ''}
+        <button class="mini-btn danger" onclick="deleteMessage(${m.id})">Delete</button>
+      </td>
+    </tr>
+  `).join("");
+}
+async function markMessageRead(id){
+  await supabase.from("messages").update({ read: true }).eq("id", id);
+  loadMessages();
+}
+async function deleteMessage(id){
+  if (!confirm("Delete this message?")) return;
+  await supabase.from("messages").delete().eq("id", id);
+  loadMessages();
+}
+
+initAdmin();
 </script>
-
 </body>
 </html>
