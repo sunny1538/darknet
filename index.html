@@ -7,12 +7,25 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Big+Shoulders+Display:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <!-- ============ CONFIG ============ -->
 <!-- Fill these in with the SAME Supabase project URL + anon/public key used in admin.html -->
 <!-- Find them at: Supabase Dashboard → Project Settings → API -->
 <script>
   const SUPABASE_URL = 'https://xhpneysygrgfycahjiix.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_d3pnHs8oUJTlessSg4Ffdw_h7dlYED6';
+
+  // ---- RAZORPAY ----
+  // Currently running in TEST MODE with a placeholder key, so the payment
+  // popup opens and works end-to-end, but no real money moves.
+  // When your real keys arrive from Razorpay:
+  //   1) Replace RAZORPAY_KEY_ID below with your Key ID (Dashboard → Settings → API Keys).
+  //        Test key looks like:  rzp_test_XXXXXXXXXXXXXX
+  //        Live key looks like:  rzp_live_XXXXXXXXXXXXXX
+  //   2) NEVER put your Key Secret in this file — it must never appear in browser code.
+  //   3) Flip RAZORPAY_TEST_MODE to false once you switch to the rzp_live_ key.
+  const RAZORPAY_KEY_ID = 'rzp_test_XXXXXXXXXXXXXX'; // <-- swap in your real Key ID here
+  const RAZORPAY_TEST_MODE = true;
 </script>
 <style>
   :root{
@@ -272,6 +285,88 @@
     font-size:12px; letter-spacing:0.08em; text-transform:uppercase; font-weight:700; cursor:pointer;
   }
   .checkout-btn:hover{background:#ffc84a;}
+  .checkout-btn:disabled{opacity:0.55; cursor:not-allowed;}
+
+  /* ---------- checkout modal ---------- */
+  .checkout-modal{max-width:460px;}
+  .checkout-test-banner{
+    background:var(--amber-faint); color:var(--amber); border:1px dashed var(--amber-dim);
+    font-size:11px; letter-spacing:0.05em; text-transform:uppercase; text-align:center;
+    padding:9px 12px; margin-bottom:18px;
+  }
+  .checkout-form{display:flex; flex-direction:column; gap:14px;}
+  .checkout-form label{
+    display:flex; flex-direction:column; gap:6px; font-size:11px; letter-spacing:0.05em;
+    text-transform:uppercase; color:var(--paper-dim);
+  }
+  .checkout-form input, .checkout-form textarea{
+    background:var(--bg); border:1px solid var(--line); color:var(--paper); padding:10px 12px;
+    font-family:inherit; font-size:13px; text-transform:none; letter-spacing:normal; resize:vertical;
+  }
+  .checkout-form input:focus, .checkout-form textarea:focus{outline:none; border-color:var(--amber-dim);}
+  .checkout-summary{
+    display:flex; justify-content:space-between; align-items:center; font-size:14px;
+    padding:12px 0; border-top:1px dashed var(--line); border-bottom:1px dashed var(--line); margin:4px 0;
+  }
+  .checkout-summary b{color:var(--amber); font-size:18px;}
+  .checkout-error{
+    color:var(--red); font-size:12px; border:1px solid var(--red); background:rgba(255,90,60,0.08);
+    padding:9px 12px;
+  }
+
+  /* ---------- policy modal ---------- */
+  .policy-overlay{
+    position:fixed; inset:0; background:rgba(2,4,2,0.78); backdrop-filter:blur(3px);
+    z-index:500; display:none; align-items:center; justify-content:center; padding:24px;
+  }
+  .policy-overlay.open{display:flex;}
+  .policy-modal{
+    width:100%; max-width:760px; max-height:86vh; background:var(--bg-panel);
+    border:1px solid var(--line); display:flex; flex-direction:column; overflow:hidden;
+  }
+  .policy-modal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px; border-bottom:1px solid var(--line); flex-shrink:0;
+  }
+  .policy-modal-head h3{font-size:16px; text-transform:uppercase; letter-spacing:0.03em; color:var(--paper);}
+  .policy-close{
+    background:transparent; border:1px solid var(--line); color:var(--paper-dim);
+    width:30px; height:30px; font-size:16px; cursor:pointer; line-height:1;
+  }
+  .policy-close:hover{border-color:var(--amber); color:var(--amber);}
+  .policy-tabs{
+    display:flex; gap:6px; padding:12px 20px 0; border-bottom:1px solid var(--line);
+    overflow-x:auto; flex-shrink:0; -webkit-overflow-scrolling:touch;
+  }
+  .policy-tabs::-webkit-scrollbar{display:none;}
+  .policy-tab{
+    background:transparent; border:1px solid var(--line); border-bottom:none; color:var(--paper-dim);
+    padding:8px 14px; font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; cursor:pointer;
+    white-space:nowrap; flex-shrink:0; margin-bottom:-1px; font-family:inherit;
+  }
+  .policy-tab.active{color:var(--amber); background:var(--bg-panel-2); border-color:var(--line);}
+  .policy-body{padding:22px 24px 28px; overflow-y:auto; font-size:12.5px; color:var(--paper-dim);}
+  .policy-pane{display:none;}
+  .policy-pane.active{display:block;}
+  .policy-pane h4{font-size:13px; text-transform:uppercase; letter-spacing:0.04em; color:var(--paper); margin:18px 0 8px;}
+  .policy-pane h4:first-child{margin-top:0;}
+  .policy-pane p{margin-bottom:11px; line-height:1.7;}
+  .policy-pane ul{margin:0 0 11px 18px; line-height:1.7;}
+  .policy-pane li{margin-bottom:5px;}
+  .policy-pane b{color:var(--paper);}
+  .policy-highlight{
+    border:1px solid var(--amber-dim); background:var(--amber-faint); padding:12px 14px;
+    font-size:12px; color:var(--paper); margin:12px 0;
+  }
+  .policy-fill{color:var(--red);}
+
+  @media(max-width:640px){
+    .policy-overlay{padding:0;}
+    .policy-modal{max-width:100%; height:100%; max-height:100%;}
+    .policy-modal-head{padding:14px 16px;}
+    .policy-tabs{padding:10px 16px 0;}
+    .policy-body{padding:18px 16px 24px;}
+  }
 
   @media (max-width:860px){
     .hero{grid-template-columns:1fr; padding:60px 20px;}
@@ -386,9 +481,11 @@
   </div>
   <div class="fcol">
     <h4>Support</h4>
-    <div>Shipping &amp; returns</div>
-    <div>Warranty claims</div>
-    <div>Acceptable use policy</div>
+    <div><a href="#" data-policy="shipping">Shipping policy</a></div>
+    <div><a href="#" data-policy="refund">Cancellation &amp; refunds</a></div>
+    <div><a href="#" data-policy="terms">Terms &amp; conditions</a></div>
+    <div><a href="#" data-policy="privacy">Privacy policy</a></div>
+    <div><a href="#" data-policy="contact">Contact us</a></div>
   </div>
   <div class="fcol">
     <h4>Status</h4>
@@ -396,6 +493,95 @@
     <div>Bench signal: locked</div>
   </div>
 </footer>
+
+<!-- ============ POLICY MODAL ============ -->
+<div class="policy-overlay" id="policyOverlay">
+  <div class="policy-modal">
+    <div class="policy-modal-head">
+      <h3 class="display">Policies</h3>
+      <button class="policy-close" id="policyClose">&times;</button>
+    </div>
+    <div class="policy-tabs">
+      <button class="policy-tab" data-pane="terms">Terms</button>
+      <button class="policy-tab" data-pane="privacy">Privacy</button>
+      <button class="policy-tab" data-pane="shipping">Shipping</button>
+      <button class="policy-tab" data-pane="refund">Refunds</button>
+      <button class="policy-tab" data-pane="contact">Contact</button>
+    </div>
+    <div class="policy-body">
+
+      <div class="policy-pane" data-pane="terms">
+        <h4>Terms &amp; Conditions</h4>
+        <p>This website is operated by <b>DARKNET</b> ("we", "us", "our"), based in Raipur, Chhattisgarh, India. By accessing or placing an order on this site, you agree to be bound by these terms.</p>
+        <h4>Use of products</h4>
+        <p>All hardware listed on this site is sold strictly for <b>authorized security research, education, and testing on systems and networks you own or have explicit written permission to test.</b> You are solely responsible for ensuring your use of any product complies with applicable law.</p>
+        <h4>Orders &amp; pricing</h4>
+        <ul>
+          <li>All prices are listed in INR (₹), inclusive of applicable taxes unless stated otherwise.</li>
+          <li>We reserve the right to refuse or cancel any order — e.g. pricing errors, suspected fraud, or stock unavailability. Any payment already captured for a cancelled order is refunded in full.</li>
+          <li>An order is confirmed only after successful payment via Razorpay.</li>
+        </ul>
+        <h4>Eligibility</h4>
+        <p>By ordering, you confirm you are at least 18 years old and legally capable of entering a binding contract.</p>
+      </div>
+
+      <div class="policy-pane" data-pane="privacy">
+        <h4>Privacy Policy</h4>
+        <p>We collect only the information needed to process and deliver your order.</p>
+        <h4>Information we collect</h4>
+        <ul>
+          <li>Name, email, phone number, and shipping address — provided by you at checkout.</li>
+          <li>Order and payment details. <b>We never see or store your card, UPI, or bank details</b> — all payment info is handled directly by Razorpay under their PCI-DSS compliant systems.</li>
+        </ul>
+        <h4>How we use it</h4>
+        <ul>
+          <li>To process, fulfill, and ship your order, and contact you about it.</li>
+          <li>We do not sell or rent your personal information to anyone.</li>
+        </ul>
+        <h4>Your rights</h4>
+        <p>Request access, correction, or deletion of your data anytime at <span class="policy-fill">sunny22101082@gmail.com</span>.</p>
+      </div>
+
+      <div class="policy-pane" data-pane="shipping">
+        <h4>Shipping Policy</h4>
+        <ul>
+          <li><b>Processing time:</b> Orders are dispatched within 24–48 hours of payment confirmation, anti-static packed.</li>
+          <li><b>Delivery time:</b> Typically <span class="policy-fill">3–7 business days</span>, via our courier partner(s).</li>
+          <li><b>Shipping charges:</b> <span class="policy-fill">Flat ₹99, free on orders above ₹2,999</span>, shown at checkout.</li>
+          <li><b>Tracking:</b> Shared via email/SMS once your order ships.</li>
+          <li><b>Coverage:</b> We currently ship across India only.</li>
+          <li>We're not responsible for delays from the courier, an incorrect address provided by the customer, or force majeure events.</li>
+        </ul>
+      </div>
+
+      <div class="policy-pane" data-pane="refund">
+        <h4>Cancellation &amp; Refund Policy</h4>
+        <h4>Order cancellation</h4>
+        <ul>
+          <li>Orders can be cancelled free of charge <b>only before they are shipped.</b> Contact us immediately at <span class="policy-fill">sunny22101082@gmail.com</span> with your order ID.</li>
+          <li>Once an order is marked "Shipped," it can no longer be cancelled.</li>
+        </ul>
+        <div class="policy-highlight">
+          <b>Once an order is shipped, it is final — no refund, return, or exchange</b> will be provided for that order, except for a product that arrives dead-on-arrival or physically damaged in transit (see below).
+        </div>
+        <h4>Damaged or defective items</h4>
+        <p>Contact us within <span class="policy-fill">48 hours</span> of delivery with your order ID and photos/video of the damaged item and packaging. Valid claims are resolved via replacement or store credit — the only exception to the no-refund-after-shipping rule above.</p>
+        <h4>Warranty</h4>
+        <p>All units carry a 12-month warranty against genuine hardware defects (not physical damage, misuse, or unauthorized firmware modification), handled via repair or replacement, not refund.</p>
+        <h4>Refund processing</h4>
+        <p>Where a refund is approved (pre-shipping cancellation, payment failure, or duplicate charge), it's credited to your original payment method via Razorpay within <span class="policy-fill">5–7 business days</span>.</p>
+      </div>
+
+      <div class="policy-pane" data-pane="contact">
+        <h4>Contact Us</h4>
+        <p><b>Business name:</b> <span class="policy-fill">DARKNET</span></p>
+        <p><b>Registered address:</b> <span class="policy-fill">Raipur, Chhattisgarh, 493114, India</span></p>
+        <p><b>Support email:</b> <span class="policy-fill">sunny22101082@gmail.com</span></p>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 <div class="overlay" id="overlay" onclick="toggleCart(false)"></div>
 <div class="drawer" id="drawer">
@@ -406,7 +592,40 @@
   <div class="drawer-items" id="drawerItems"></div>
   <div class="drawer-foot">
     <div class="total"><span>Total</span><b id="cartTotal">₹0</b></div>
-    <button class="checkout-btn" onclick="alert('This is a demo storefront — no live checkout is connected.')">Checkout</button>
+    <button class="checkout-btn" id="openCheckoutBtn">Checkout</button>
+  </div>
+</div>
+
+<!-- ============ CHECKOUT MODAL ============ -->
+<div class="policy-overlay" id="checkoutOverlay">
+  <div class="policy-modal checkout-modal">
+    <div class="policy-modal-head">
+      <h3 class="display">Checkout</h3>
+      <button class="policy-close" id="checkoutClose">&times;</button>
+    </div>
+    <div class="policy-body">
+      <div id="checkoutTestBanner" class="checkout-test-banner">TEST MODE — no real payment will be captured</div>
+      <form id="checkoutForm" class="checkout-form">
+        <label>Full name
+          <input type="text" name="customer_name" required autocomplete="name">
+        </label>
+        <label>Email
+          <input type="email" name="customer_email" required autocomplete="email">
+        </label>
+        <label>Phone
+          <input type="tel" name="customer_phone" required autocomplete="tel" pattern="[0-9+ ]{7,15}">
+        </label>
+        <label>Shipping address
+          <textarea name="shipping_address" rows="3" required autocomplete="street-address"></textarea>
+        </label>
+        <div class="checkout-summary">
+          <span>Order total</span>
+          <b id="checkoutTotal">₹0</b>
+        </div>
+        <div id="checkoutError" class="checkout-error" style="display:none;"></div>
+        <button type="submit" class="checkout-btn" id="checkoutPayBtn">Pay with Razorpay</button>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -560,6 +779,182 @@ function toggleCart(open){
   document.getElementById('overlay').classList.toggle('open', open);
 }
 
+/* ============ CHECKOUT + RAZORPAY ============ */
+(function checkoutFlow(){
+  const openBtn = document.getElementById('openCheckoutBtn');
+  const overlay = document.getElementById('checkoutOverlay');
+  const closeBtn = document.getElementById('checkoutClose');
+  const form = document.getElementById('checkoutForm');
+  const payBtn = document.getElementById('checkoutPayBtn');
+  const errorBox = document.getElementById('checkoutError');
+  const totalEl = document.getElementById('checkoutTotal');
+  const testBanner = document.getElementById('checkoutTestBanner');
+
+  if (!openBtn) return; // markup not present, skip silently
+
+  testBanner.style.display = RAZORPAY_TEST_MODE ? 'block' : 'none';
+
+  function cartTotal(){
+    return Object.entries(cart).reduce((sum,[id,qty]) => {
+      const p = products.find(x => x.id === id);
+      return sum + (p ? p.price * qty : 0);
+    }, 0);
+  }
+
+  function showError(msg){
+    errorBox.textContent = msg;
+    errorBox.style.display = 'block';
+  }
+  function clearError(){
+    errorBox.style.display = 'none';
+    errorBox.textContent = '';
+  }
+
+  function openCheckout(){
+    if (Object.keys(cart).length === 0){
+      alert('Your cart is empty — add hardware from the catalog first.');
+      return;
+    }
+    clearError();
+    totalEl.textContent = money(cartTotal());
+    toggleCart(false);
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCheckout(){
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  openBtn.addEventListener('click', openCheckout);
+  closeBtn.addEventListener('click', closeCheckout);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCheckout(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('open')) closeCheckout(); });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearError();
+
+    if (typeof Razorpay === 'undefined'){
+      showError('Payment library failed to load. Check your connection and try again.');
+      return;
+    }
+    if (!RAZORPAY_KEY_ID || RAZORPAY_KEY_ID.includes('XXXXXXXX')){
+      showError('Payments are not fully configured yet — Razorpay Key ID is missing. Contact the store owner.');
+      return;
+    }
+    if (!window.supabase || SUPABASE_URL.includes('YOUR-PROJECT')){
+      showError('Store backend is not configured yet. Contact the store owner.');
+      return;
+    }
+
+    const fd = new FormData(form);
+    const customer = {
+      customer_name: fd.get('customer_name').trim(),
+      customer_email: fd.get('customer_email').trim(),
+      customer_phone: fd.get('customer_phone').trim(),
+      shipping_address: fd.get('shipping_address').trim(),
+    };
+    const total = cartTotal();
+    if (total <= 0){
+      showError('Your cart is empty.');
+      return;
+    }
+
+    payBtn.disabled = true;
+    payBtn.textContent = 'Preparing order…';
+
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    try {
+      // 1) Create the order in Supabase first, status 'pending'
+      const { data: orderRow, error: orderErr } = await client
+        .from('orders')
+        .insert({
+          customer_name: customer.customer_name,
+          customer_email: customer.customer_email,
+          customer_phone: customer.customer_phone,
+          shipping_address: customer.shipping_address,
+          status: 'pending',
+          total: total,
+        })
+        .select()
+        .single();
+      if (orderErr) throw orderErr;
+
+      // 2) Insert line items
+      const items = Object.entries(cart).map(([id, qty]) => {
+        const p = products.find(x => x.id === id);
+        return {
+          order_id: orderRow.id,
+          product_id: id,
+          product_name: p.name,
+          quantity: qty,
+          unit_price: p.price,
+        };
+      });
+      const { error: itemsErr } = await client.from('order_items').insert(items);
+      if (itemsErr) throw itemsErr;
+
+      // 3) Open Razorpay Checkout
+      payBtn.textContent = 'Opening payment…';
+      const rzp = new Razorpay({
+        key: RAZORPAY_KEY_ID,
+        amount: total * 100, // paise
+        currency: 'INR',
+        name: 'DARKNET',
+        description: `Order ${orderRow.id.slice(0, 8)}`,
+        prefill: {
+          name: customer.customer_name,
+          email: customer.customer_email,
+          contact: customer.customer_phone,
+        },
+        notes: {
+          order_id: orderRow.id,
+        },
+        theme: { color: '#00ff66' },
+        handler: async function (response){
+          // NOTE: this confirms payment on the client only. For production,
+          // verify response.razorpay_payment_id / order_id / signature on a
+          // server (e.g. a Supabase Edge Function holding your Key Secret)
+          // before marking the order paid — see the comment near
+          // RAZORPAY_KEY_ID at the top of this file.
+          try {
+            await client.from('orders').update({ status: 'paid' }).eq('id', orderRow.id);
+          } catch(err){
+            console.error('Could not update order status:', err);
+          }
+          cart = {};
+          updateCartUI();
+          form.reset();
+          closeCheckout();
+          alert('Payment successful! Order ' + orderRow.id.slice(0, 8) + ' is confirmed. A confirmation has been recorded — check your email for updates.');
+        },
+        modal: {
+          ondismiss: function(){
+            payBtn.disabled = false;
+            payBtn.textContent = 'Pay with Razorpay';
+          }
+        }
+      });
+      rzp.on('payment.failed', function (response){
+        showError('Payment failed: ' + (response.error && response.error.description ? response.error.description : 'please try again.'));
+        payBtn.disabled = false;
+        payBtn.textContent = 'Pay with Razorpay';
+      });
+      rzp.open();
+      payBtn.textContent = 'Pay with Razorpay';
+      payBtn.disabled = false;
+
+    } catch (err){
+      console.error(err);
+      showError('Could not start checkout: ' + (err.message || 'unknown error') + '. Please try again.');
+      payBtn.disabled = false;
+      payBtn.textContent = 'Pay with Razorpay';
+    }
+  });
+})();
+
 document.querySelectorAll('.filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -638,6 +1033,36 @@ const bootLines = [
   if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
     draw();
   }
+})();
+
+/* ---------- policy modal ---------- */
+(function policyModal(){
+  const overlay = document.getElementById('policyOverlay');
+  const tabs = document.querySelectorAll('.policy-tab');
+  const panes = document.querySelectorAll('.policy-pane');
+
+  function openPolicy(name){
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.pane === name));
+    panes.forEach(p => p.classList.toggle('active', p.dataset.pane === name));
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    overlay.querySelector('.policy-body').scrollTop = 0;
+  }
+  function closePolicy(){
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll('[data-policy]').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      openPolicy(link.dataset.policy);
+    });
+  });
+  tabs.forEach(t => t.addEventListener('click', () => openPolicy(t.dataset.pane)));
+  document.getElementById('policyClose').addEventListener('click', closePolicy);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closePolicy(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePolicy(); });
 })();
 
 /* ---------- periodic glitch on hero title ---------- */
