@@ -359,21 +359,45 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   const errEl = document.getElementById('loginError');
   errEl.textContent = '';
   const btn = document.getElementById('loginBtn');
-  btn.disabled = true; btn.textContent = 'Signing in...';
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  btn.disabled = false; btn.textContent = 'Sign In';
-
-  if (error) { errEl.textContent = 'Access denied: ' + error.message; return; }
-
-  // confirm this user is actually an admin
-  const { data: adminRow } = await supabase.from('admin_users').select('email').eq('id', data.user.id).single();
-  if (!adminRow) {
-    errEl.textContent = 'This account is not authorized as an admin.';
-    await supabase.auth.signOut();
+  if (!supabase) {
+    errEl.textContent = 'Not connected: Supabase client failed to initialize. Check SUPABASE_URL / SUPABASE_ANON_KEY.';
     return;
   }
-  await enterDashboard(data.session);
+  if (!email || !password) {
+    errEl.textContent = 'Enter both email and password.';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Signing in...';
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) { errEl.textContent = 'Access denied: ' + error.message; return; }
+
+    // confirm this user is actually an admin
+    const { data: adminRow, error: adminErr } = await supabase
+      .from('admin_users').select('email').eq('id', data.user.id).single();
+
+    if (adminErr || !adminRow) {
+      errEl.textContent = 'This account is not authorized as an admin.';
+      await supabase.auth.signOut();
+      return;
+    }
+    await enterDashboard(data.session);
+  } catch (e) {
+    console.error('Login failed:', e);
+    errEl.textContent = 'Login failed: ' + (e && e.message ? e.message : 'unexpected error — check console.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+});
+
+['loginEmail','loginPassword'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('loginBtn').click();
+  });
 });
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
