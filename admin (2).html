@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DARKNET — Admin Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Big+Shoulders+Display:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #050805;
+    --bg-panel: #0c130d;
+    --bg-panel-2: #101a11;
+    --amber: #00ff66;
+    --amber-dim: #0a9b45;
+    --amber-faint: #0e3319;
+    --paper: #d7f5df;
+    --paper-dim: #7fa88c;
+    --line: #1a2e1d;
+    --red: #ff5a3c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--paper);
+    font-family:'IBM Plex Mono', monospace;
+    min-height:100vh;
+  }
+  .display{font-family:'Big Shoulders Display', sans-serif; font-weight:800; letter-spacing:0.01em;}
+  a{color:inherit;}
+  ::selection{background:var(--amber); color:#0b0d0a;}
+  input,select,button,textarea{font-family:inherit;}
+
+  /* ---------- login screen ---------- */
+  #loginScreen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .login-box{
+    width:100%; max-width:380px; border:1px solid var(--line); background:var(--bg-panel);
+    padding:36px 32px;
+  }
+  .login-box .mark{
+    width:40px; height:40px; border:1.5px solid var(--amber); display:flex; align-items:center; justify-content:center;
+    font-size:17px; color:var(--amber); font-weight:700; margin-bottom:18px;
+  }
+  .login-box h1{font-size:22px; text-transform:uppercase; margin-bottom:6px;}
+  .login-box .sub{color:var(--paper-dim); font-size:12px; margin-bottom:26px; line-height:1.6;}
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--amber-dim); margin-bottom:6px;}
+  .field input{
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--paper);
+    padding:11px 12px; font-size:13px; outline:none; transition:border-color .15s;
+  }
+  .field input:focus{border-color:var(--amber);}
+  .btn{
+    width:100%; background:var(--amber); color:#0b0d0a; border:none; padding:12px;
+    font-size:12px; letter-spacing:0.1em; text-transform:uppercase; font-weight:700;
+    cursor:pointer; font-family:inherit; transition:opacity .15s;
+  }
+  .btn:hover{opacity:0.85;}
+  .btn:disabled{opacity:0.4; cursor:not-allowed;}
+  .btn-outline{
+    background:transparent; border:1px solid var(--amber-dim); color:var(--amber);
+  }
+  #loginError{
+    color:var(--red); font-size:11.5px; margin-top:14px; min-height:16px; line-height:1.5;
+  }
+
+  /* ---------- dashboard ---------- */
+  #dashboard{display:none;}
+  header.admin{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 32px; border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:rgba(5,8,5,0.94); backdrop-filter:blur(6px); z-index:10;
+  }
+  .logo{display:flex; align-items:center; gap:10px;}
+  .logo .mark{
+    width:30px; height:30px; border:1.5px solid var(--amber); display:flex; align-items:center; justify-content:center;
+    font-size:13px; color:var(--amber); font-weight:700;
+  }
+  .logo .word{font-size:16px; letter-spacing:0.02em;}
+  .logo .word b{color:var(--amber);}
+  .who{font-size:11px; color:var(--paper-dim); display:flex; align-items:center; gap:14px;}
+  .who .dot{width:6px; height:6px; background:var(--amber); border-radius:50%; box-shadow:0 0 8px var(--amber); display:inline-block; margin-right:6px;}
+  .who button{background:transparent; border:1px solid var(--line); color:var(--paper-dim); padding:7px 14px; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; cursor:pointer;}
+  .who button:hover{border-color:var(--amber); color:var(--amber);}
+
+  .tabs{display:flex; gap:6px; padding:20px 32px 0; border-bottom:1px solid var(--line);}
+  .tab-btn{
+    background:transparent; border:1px solid var(--line); border-bottom:none; color:var(--paper-dim);
+    padding:10px 20px; font-size:11px; text-transform:uppercase; letter-spacing:0.08em; cursor:pointer;
+    transition:all .15s; margin-bottom:-1px;
+  }
+  .tab-btn.active{color:var(--amber); border-color:var(--line); background:var(--bg-panel); border-bottom:1px solid var(--bg-panel);}
+
+  main{padding:28px 32px 60px;}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  /* stat cards */
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px;}
+  .stat{border:1px solid var(--line); background:var(--bg-panel); padding:18px;}
+  .stat .label{font-size:10.5px; text-transform:uppercase; letter-spacing:0.08em; color:var(--paper-dim); margin-bottom:8px;}
+  .stat .val{font-size:26px; font-family:'Big Shoulders Display'; font-weight:800; color:var(--amber);}
+
+  .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:12px; flex-wrap:wrap;}
+  .toolbar h2{font-size:18px; text-transform:uppercase;}
+  select.status-filter{
+    background:var(--bg-panel); border:1px solid var(--line); color:var(--paper); padding:8px 12px; font-size:11px;
+  }
+
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  thead th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:0.07em; color:var(--paper-dim);
+    padding:10px 12px; border-bottom:1px solid var(--line);
+  }
+  tbody td{padding:12px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tbody tr:hover{background:var(--bg-panel);}
+  .badge{
+    display:inline-block; padding:3px 9px; font-size:10px; text-transform:uppercase; letter-spacing:0.05em;
+    border:1px solid var(--amber-dim); color:var(--amber);
+  }
+  .badge.pending{border-color:#7a6a1a; color:#e0c53d;}
+  .badge.paid{border-color:var(--amber-dim); color:var(--amber);}
+  .badge.shipped{border-color:#2a6ee0; color:#6fa8ff;}
+  .badge.delivered{border-color:var(--amber); color:var(--amber); background:var(--amber-faint);}
+  .badge.cancelled{border-color:var(--red); color:var(--red);}
+  select.status-select{
+    background:var(--bg); border:1px solid var(--line); color:var(--paper); padding:6px 8px; font-size:11px;
+  }
+  .items-list{font-size:11px; color:var(--paper-dim); line-height:1.6;}
+
+  .btn-sm{
+    background:transparent; border:1px solid var(--line); color:var(--paper-dim); padding:6px 12px;
+    font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; cursor:pointer; font-family:inherit;
+  }
+  .btn-sm:hover{border-color:var(--amber); color:var(--amber);}
+  .btn-sm.danger:hover{border-color:var(--red); color:var(--red);}
+
+  #productForm{
+    border:1px solid var(--line); background:var(--bg-panel); padding:20px; margin-bottom:24px; display:none;
+  }
+  #productForm.open{display:block;}
+  .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .form-grid .full{grid-column:1/-1;}
+  .form-grid textarea{
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--paper); padding:10px; font-size:12px;
+    resize:vertical; min-height:60px; font-family:inherit;
+  }
+  .form-actions{display:flex; gap:10px; margin-top:16px;}
+
+  .empty-state{color:var(--paper-dim); font-size:12px; padding:40px 0; text-align:center;}
+  #configNotice{
+    background:var(--bg-panel-2); border:1px solid var(--line); padding:14px 18px; font-size:11.5px;
+    color:var(--paper-dim); line-height:1.7; margin:20px 32px;
+  }
+  #configNotice b{color:var(--amber);}
+  #configNotice code{color:var(--amber); background:var(--amber-faint); padding:1px 5px;}
+
+  /* image upload */
+  .img-upload{display:flex; gap:14px; align-items:flex-start;}
+  .img-preview{
+    width:84px; height:84px; border:1px dashed var(--line); background:var(--bg);
+    display:flex; align-items:center; justify-content:center; color:var(--paper-dim);
+    font-size:10px; text-align:center; overflow:hidden; flex-shrink:0;
+  }
+  .img-preview img{width:100%; height:100%; object-fit:cover;}
+  .img-upload-controls{flex:1; display:flex; flex-direction:column; gap:8px;}
+  .img-upload-controls input[type="file"]{
+    font-size:11px; color:var(--paper-dim);
+  }
+  .img-upload-controls input[type="text"]{
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--paper);
+    padding:9px 10px; font-size:11.5px; outline:none;
+  }
+  .img-upload-controls input[type="text"]:focus{border-color:var(--amber);}
+  #pf-image-status{font-size:10.5px; color:var(--paper-dim); min-height:14px;}
+  #pf-image-status.err{color:var(--red);}
+  #pf-image-status.ok{color:var(--amber);}
+
+  .thumb{width:38px; height:38px; object-fit:cover; border:1px solid var(--line); background:var(--bg);}
+  .thumb-glyph{
+    width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); background:var(--bg); color:var(--amber-dim); font-size:16px;
+  }
+  .toggle-row{display:flex; align-items:center; gap:8px; padding-top:6px;}
+  .toggle-row input{width:16px; height:16px; accent-color:var(--amber);}
+  .toggle-row label{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--paper-dim); margin:0;}
+
+  @media(max-width:800px){
+    .stats{grid-template-columns:repeat(2,1fr);}
+    .form-grid{grid-template-columns:1fr;}
+    header.admin, .tabs, main{padding-left:16px; padding-right:16px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ CONFIG ============ -->
+<!-- Fill these in with your Supabase project's URL + anon/public key -->
+<!-- Find them at: Supabase Dashboard → Project Settings → API -->
+<script>
+  const SUPABASE_URL = 'https://xhpneysygrgfycahjiix.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_d3pnHs8oUJTlessSg4Ffdw_h7dlYED6';
+</script>
+
+<div id="configNotice" style="display:none;">
+  ⚠ <b>Not connected yet.</b> Open this file and set <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code>
+  near the top (Supabase Dashboard → Project Settings → API), after running <code>schema.sql</code> in the SQL Editor.
+</div>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="mark">▲</div>
+    <h1 class="display">Admin Access</h1>
+    <div class="sub">Restricted console. Authorized operators only.</div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="admin@darknet.local" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn" id="loginBtn">Sign In</button>
+    <div id="loginError"></div>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashboard">
+  <header class="admin">
+    <div class="logo">
+      <div class="mark">▲</div>
+      <div class="word">DARK<b>NET</b> / admin</div>
+    </div>
+    <div class="who">
+      <span><span class="dot"></span><span id="whoEmail">—</span></span>
+      <button id="logoutBtn">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="orders">Orders</button>
+    <button class="tab-btn" data-tab="products">Products</button>
+  </nav>
+
+  <main>
+    <!-- ORDERS PANEL -->
+    <div class="panel active" id="panel-orders">
+      <div class="stats">
+        <div class="stat"><div class="label">Total orders</div><div class="val" id="statTotalOrders">0</div></div>
+        <div class="stat"><div class="label">Pending</div><div class="val" id="statPending">0</div></div>
+        <div class="stat"><div class="label">Revenue (paid+)</div><div class="val" id="statRevenue">₹0</div></div>
+        <div class="stat"><div class="label">Products listed</div><div class="val" id="statProducts">0</div></div>
+      </div>
+
+      <div class="toolbar">
+        <h2>Orders</h2>
+        <select class="status-filter" id="statusFilter">
+          <option value="all">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="paid">Paid</option>
+          <option value="shipped">Shipped</option>
+          <option value="delivered">Delivered</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Placed</th>
+          </tr>
+        </thead>
+        <tbody id="ordersBody"></tbody>
+      </table>
+      <div class="empty-state" id="ordersEmpty" style="display:none;">No orders yet.</div>
+    </div>
+
+    <!-- PRODUCTS PANEL -->
+    <div class="panel" id="panel-products">
+      <div class="toolbar">
+        <h2>Products</h2>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="text" id="productSearch" placeholder="Search by name, ID, or category…" style="background:var(--bg-panel); border:1px solid var(--line); color:var(--paper); padding:8px 12px; font-size:11.5px; min-width:220px; outline:none;">
+          <button class="btn-sm" id="newProductBtn">+ New product</button>
+        </div>
+      </div>
+
+      <div id="productForm">
+        <input type="hidden" id="pf-editing-id">
+        <h3 id="pf-heading" class="display" style="font-size:15px; text-transform:uppercase; margin-bottom:14px; color:var(--amber);">New Product</h3>
+        <div class="form-grid">
+          <div class="field"><label>ID (slug)</label><input id="pf-id" placeholder="wifi-pineapple"></div>
+          <div class="field"><label>Name</label><input id="pf-name" placeholder="WiFi Pineapple Mark VII"></div>
+          <div class="field"><label>Category</label><input id="pf-category" placeholder="rf"></div>
+          <div class="field"><label>Tag</label><input id="pf-tag" placeholder="NEW (optional)"></div>
+          <div class="field"><label>Glyph</label><input id="pf-glyph" placeholder="▩"></div>
+          <div class="field"><label>Price (₹)</label><input id="pf-price" type="number" placeholder="24999"></div>
+          <div class="field full">
+            <label>Product image</label>
+            <div class="img-upload">
+              <div class="img-preview" id="pf-image-preview">No image</div>
+              <div class="img-upload-controls">
+                <input type="file" id="pf-image-file" accept="image/png,image/jpeg,image/webp,image/gif">
+                <input type="text" id="pf-image" placeholder="Or paste an image URL directly">
+                <div id="pf-image-status"></div>
+              </div>
+            </div>
+          </div>
+          <div class="field full"><label>Description</label><textarea id="pf-desc"></textarea></div>
+          <div class="field full"><label>Specs (JSON, e.g. [["Radios","Dual-band"]])</label><textarea id="pf-specs">[]</textarea></div>
+          <div class="field full toggle-row">
+            <input type="checkbox" id="pf-active" checked>
+            <label for="pf-active">Active (visible on storefront)</label>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn" id="pf-save">Save product</button>
+          <button class="btn-sm" id="pf-cancel">Cancel</button>
+        </div>
+      </div>
+
+
+      <table>
+        <thead><tr><th>Image</th><th>ID</th><th>Name</th><th>Category</th><th>Price</th><th>Active</th><th></th></tr></thead>
+        <tbody id="productsBody"></tbody>
+      </table>
+      <div class="empty-state" id="productsEmpty" style="display:none;">No products yet.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+let supabase;
+try {
+  if (SUPABASE_URL.includes('YOUR-PROJECT')) {
+    document.getElementById('configNotice').style.display = 'block';
+  }
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch(e) { console.error(e); }
+
+const money = n => '₹' + Number(n).toLocaleString('en-IN');
+
+// ---------- auth ----------
+const loginScreen = document.getElementById('loginScreen');
+const dashboard = document.getElementById('dashboard');
+
+async function checkSession(){
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) { await enterDashboard(session); }
+}
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Signing in...';
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Sign In';
+
+  if (error) { errEl.textContent = 'Access denied: ' + error.message; return; }
+
+  // confirm this user is actually an admin
+  const { data: adminRow } = await supabase.from('admin_users').select('email').eq('id', data.user.id).single();
+  if (!adminRow) {
+    errEl.textContent = 'This account is not authorized as an admin.';
+    await supabase.auth.signOut();
+    return;
+  }
+  await enterDashboard(data.session);
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await supabase.auth.signOut();
+  dashboard.style.display = 'none';
+  loginScreen.style.display = 'flex';
+});
+
+async function enterDashboard(session){
+  document.getElementById('whoEmail').textContent = session.user.email;
+  loginScreen.style.display = 'none';
+  dashboard.style.display = 'block';
+  await Promise.all([loadOrders(), loadProducts()]);
+}
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- orders ----------
+let allOrders = [];
+
+async function loadOrders(){
+  const { data: orders, error } = await supabase
+    .from('orders')
+    .select('*, order_items(*)')
+    .order('created_at', { ascending: false });
+  if (error) { console.error(error); return; }
+  allOrders = orders || [];
+  renderOrders();
+  renderStats();
+}
+
+function renderOrders(){
+  const filter = document.getElementById('statusFilter').value;
+  const body = document.getElementById('ordersBody');
+  const rows = allOrders.filter(o => filter === 'all' || o.status === filter);
+  document.getElementById('ordersEmpty').style.display = rows.length ? 'none' : 'block';
+
+  body.innerHTML = rows.map(o => `
+    <tr>
+      <td>#${o.id.slice(0,8)}</td>
+      <td>${escapeHtml(o.customer_name)}<br><span style="color:var(--paper-dim);font-size:11px;">${escapeHtml(o.customer_email)}</span></td>
+      <td class="items-list">${(o.order_items||[]).map(i => `${i.quantity}× ${escapeHtml(i.product_name)}`).join('<br>') || '—'}</td>
+      <td>${money(o.total)}</td>
+      <td>
+        <select class="status-select" data-order="${o.id}">
+          ${['pending','paid','shipped','delivered','cancelled'].map(s =>
+            `<option value="${s}" ${s===o.status?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+      <td>${new Date(o.created_at).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'})}</td>
+    </tr>
+  `).join('');
+
+  body.querySelectorAll('.status-select').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const { error } = await supabase.from('orders').update({ status: sel.value }).eq('id', sel.dataset.order);
+      if (error) { alert('Update failed: ' + error.message); return; }
+      const o = allOrders.find(x => x.id === sel.dataset.order);
+      if (o) o.status = sel.value;
+      renderStats();
+    });
+  });
+}
+
+document.getElementById('statusFilter').addEventListener('change', renderOrders);
+
+function renderStats(){
+  document.getElementById('statTotalOrders').textContent = allOrders.length;
+  document.getElementById('statPending').textContent = allOrders.filter(o => o.status === 'pending').length;
+  const revenue = allOrders.filter(o => ['paid','shipped','delivered'].includes(o.status)).reduce((s,o)=>s+o.total,0);
+  document.getElementById('statRevenue').textContent = money(revenue);
+}
+
+// ---------- products ----------
+let allProducts = [];
+
+async function loadProducts(){
+  const { data, error } = await supabase.from('products').select('*').order('created_at');
+  if (error) { console.error(error); return; }
+  allProducts = data || [];
+  renderProducts();
+  document.getElementById('statProducts').textContent = allProducts.length;
+}
+
+function renderProducts(){
+  const body = document.getElementById('productsBody');
+  const q = (document.getElementById('productSearch').value || '').trim().toLowerCase();
+  const list = q
+    ? allProducts.filter(p =>
+        (p.name||'').toLowerCase().includes(q) ||
+        (p.id||'').toLowerCase().includes(q) ||
+        (p.category||'').toLowerCase().includes(q))
+    : allProducts;
+
+  document.getElementById('productsEmpty').style.display = list.length ? 'none' : 'block';
+  document.getElementById('productsEmpty').textContent = q && !list.length ? 'No products match your search.' : 'No products yet.';
+
+  body.innerHTML = list.map(p => `
+    <tr>
+      <td>${p.image_url ? `<img class="thumb" src="${escapeHtml(p.image_url)}" alt="">` : `<div class="thumb-glyph">${p.glyph||'—'}</div>`}</td>
+      <td>${escapeHtml(p.id)}</td>
+      <td>${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.category)}</td>
+      <td>${money(p.price)}</td>
+      <td>${p.active ? 'Yes' : 'No'}</td>
+      <td style="display:flex; gap:8px;">
+        <button class="btn-sm" data-edit="${p.id}">Edit</button>
+        <button class="btn-sm danger" data-del="${p.id}">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+
+  body.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openForm(b.dataset.edit)));
+  body.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Delete this product?')) return;
+    const { error } = await supabase.from('products').delete().eq('id', b.dataset.del);
+    if (error) { alert('Delete failed: ' + error.message); return; }
+    await loadProducts();
+  }));
+}
+
+document.getElementById('productSearch').addEventListener('input', renderProducts);
+
+const productForm = document.getElementById('productForm');
+document.getElementById('newProductBtn').addEventListener('click', () => openForm(null));
+document.getElementById('pf-cancel').addEventListener('click', () => productForm.classList.remove('open'));
+
+function openForm(id){
+  const p = allProducts.find(x => x.id === id) || {};
+  document.getElementById('pf-heading').textContent = id ? `Edit Product — ${p.name || id}` : 'New Product';
+  document.getElementById('pf-editing-id').value = id || '';
+  document.getElementById('pf-id').value = p.id || '';
+  document.getElementById('pf-id').disabled = !!id;
+  document.getElementById('pf-name').value = p.name || '';
+  document.getElementById('pf-category').value = p.category || '';
+  document.getElementById('pf-tag').value = p.tag || '';
+  document.getElementById('pf-glyph').value = p.glyph || '';
+  document.getElementById('pf-price').value = p.price || '';
+  document.getElementById('pf-desc').value = p.description || '';
+  document.getElementById('pf-specs').value = JSON.stringify(p.specs || [], null, 2);
+  document.getElementById('pf-image').value = p.image_url || '';
+  document.getElementById('pf-active').checked = p.active !== false;
+  document.getElementById('pf-image-file').value = '';
+  updateImagePreview(p.image_url || '');
+  setImageStatus('', '');
+  productForm.classList.add('open');
+  productForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ---------- image upload ----------
+function updateImagePreview(url){
+  const preview = document.getElementById('pf-image-preview');
+  if (url) {
+    preview.innerHTML = `<img src="${url}" alt="">`;
+  } else {
+    preview.innerHTML = 'No image';
+  }
+}
+
+function setImageStatus(msg, kind){
+  const el = document.getElementById('pf-image-status');
+  el.textContent = msg;
+  el.className = kind || '';
+}
+
+document.getElementById('pf-image').addEventListener('input', (e) => {
+  updateImagePreview(e.target.value.trim());
+});
+
+document.getElementById('pf-image-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+  if (file.size > MAX_SIZE) {
+    setImageStatus('Image too large — max 5MB.', 'err');
+    e.target.value = '';
+    return;
+  }
+  if (!/^image\/(png|jpeg|jpg|webp|gif)$/.test(file.type)) {
+    setImageStatus('Unsupported file type.', 'err');
+    e.target.value = '';
+    return;
+  }
+
+  const idField = document.getElementById('pf-id').value.trim() || 'product';
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${idField}-${Date.now()}.${ext}`;
+
+  e.target.disabled = true;
+  setImageStatus('Uploading…', '');
+  const { error: uploadError } = await supabase.storage
+    .from('product-images')
+    .upload(path, file, { cacheControl: '3600', upsert: true });
+
+  e.target.disabled = false;
+  if (uploadError) {
+    setImageStatus('Upload failed: ' + uploadError.message, 'err');
+    return;
+  }
+
+  const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
+  document.getElementById('pf-image').value = pub.publicUrl;
+  updateImagePreview(pub.publicUrl);
+  setImageStatus('Uploaded ✓', 'ok');
+});
+
+document.getElementById('pf-save').addEventListener('click', async () => {
+  const editingId = document.getElementById('pf-editing-id').value;
+  let specs;
+  try { specs = JSON.parse(document.getElementById('pf-specs').value || '[]'); }
+  catch(e) { alert('Specs must be valid JSON, e.g. [["Freqs","2.4GHz"]]'); return; }
+
+  const row = {
+    id: document.getElementById('pf-id').value.trim(),
+    name: document.getElementById('pf-name').value.trim(),
+    category: document.getElementById('pf-category').value.trim(),
+    tag: document.getElementById('pf-tag').value.trim(),
+    glyph: document.getElementById('pf-glyph').value.trim(),
+    price: Number(document.getElementById('pf-price').value) || 0,
+    description: document.getElementById('pf-desc').value.trim(),
+    image_url: document.getElementById('pf-image').value.trim() || null,
+    active: document.getElementById('pf-active').checked,
+    specs
+  };
+  if (!row.id || !row.name) { alert('ID and Name are required.'); return; }
+
+  const saveBtn = document.getElementById('pf-save');
+  saveBtn.disabled = true;
+  saveBtn.textContent = editingId ? 'Saving…' : 'Creating…';
+
+  const { error } = await supabase.from('products').upsert(row, { onConflict: 'id' });
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = 'Save product';
+
+  if (error) { alert('Save failed: ' + error.message); return; }
+  productForm.classList.remove('open');
+  await loadProducts();
+});
+
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+if (supabase) checkSession();
+</script>
+</body>
+</html>
