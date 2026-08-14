@@ -2,901 +2,654 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#0B0E11">
-<title>CircuitBazaar — Maker & Prototyping Hardware</title>
-<meta name="description" content="Dev boards, modules and prototyping kits for makers, students and hobbyists.">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DARKNET — Field Hardware for Security Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Big+Shoulders+Display:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js"></script>
+<!-- ============ CONFIG ============ -->
+<!-- Fill these in with the SAME Supabase project URL + anon/public key used in admin.html -->
+<!-- Find them at: Supabase Dashboard → Project Settings → API -->
+<script>
+  const SUPABASE_URL = 'https://xhpneysygrgfycahjiix.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_d3pnHs8oUJTlessSg4Ffdw_h7dlYED6';
+</script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  :root{
+    --bg: #050805;
+    --bg-panel: #0c130d;
+    --bg-panel-2: #101a11;
+    --amber: #00ff66;
+    --amber-dim: #0a9b45;
+    --amber-faint: #0e3319;
+    --paper: #d7f5df;
+    --paper-dim: #7fa88c;
+    --line: #1a2e1d;
+    --red: #ff5a3c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:
+      radial-gradient(circle at 15% -10%, rgba(0,255,102,0.06), transparent 40%),
+      var(--bg);
+    color:var(--paper);
+    font-family:'IBM Plex Mono', monospace;
+    -webkit-font-smoothing:antialiased;
+  }
+  .display{font-family:'Big Shoulders Display', sans-serif; font-weight:800; letter-spacing:0.01em;}
 
-:root{
-  --bg:#0B0E11; --surface:#12171C; --surface-raised:#171D24; --line:#232B32;
-  --copper:#B87333; --copper-bright:#D6924F; --trace:#4FD1C5;
-  --text:#E7ECEF; --muted:#8A96A3; --danger:#E8604C; --radius:3px;
-}
-*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-html{scroll-behavior:smooth; -webkit-text-size-adjust:100%;}
-body{margin:0; background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; line-height:1.5; overflow-x:hidden; width:100%;}
-img{max-width:100%;}
-@media (prefers-reduced-motion: reduce){ *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;} }
-h1,h2,h3{font-family:'JetBrains Mono',monospace; letter-spacing:-0.01em;}
-.data,.price,.qty{font-family:'IBM Plex Mono',monospace;}
-a{color:inherit;} button{font-family:inherit; cursor:pointer;}
-:focus-visible{outline:2px solid var(--trace); outline-offset:2px;}
-.wrap{max-width:1180px; margin:0 auto; padding:0 24px;}
+  /* scanline / crt texture */
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:200;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,0.12) 0px, rgba(0,0,0,0.12) 1px, transparent 1px, transparent 3px);
+    opacity:0.35; mix-blend-mode:overlay;
+  }
+  /* faint crt flicker */
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:199;
+    background:var(--amber); opacity:0; mix-blend-mode:overlay;
+    animation:flicker 6.5s infinite;
+  }
+  @keyframes flicker{
+    0%,96%,100%{opacity:0;}
+    97%{opacity:0.02;}
+    98%{opacity:0;}
+    98.5%{opacity:0.035;}
+    99%{opacity:0;}
+  }
 
-header{position:sticky; top:0; z-index:40; background:rgba(11,14,17,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);}
-.nav{display:flex; align-items:center; justify-content:space-between; padding:16px 24px; gap:12px; position:relative;}
-.brand{display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:1.15rem; text-decoration:none;}
-.brand .dot{width:8px; height:8px; border-radius:50%; background:var(--trace); box-shadow:0 0 8px var(--trace);}
-.brand .sub{color:var(--copper-bright); font-weight:600;}
-.navlinks{display:flex; gap:28px; font-size:0.92rem; color:var(--muted); flex:1; justify-content:center;}
-.navlinks a{text-decoration:none; transition:color .15s; white-space:nowrap;}
-.navlinks a:hover{color:var(--trace);}
-.nav-toggle{display:none; background:transparent; border:1px solid var(--line); color:var(--text); width:40px; height:40px; border-radius:var(--radius); align-items:center; justify-content:center; flex-shrink:0;}
-.nav-toggle svg{width:20px; height:20px;}
-.cart-btn{display:flex; align-items:center; gap:8px; background:transparent; border:1px solid var(--line); color:var(--text); padding:8px 14px; border-radius:var(--radius); font-size:0.85rem; transition:border-color .15s; flex-shrink:0;}
-.cart-btn:hover{border-color:var(--trace);}
-.cart-count{background:var(--copper); color:#0B0E11; font-weight:700; border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-size:0.72rem;}
+  #matrixRain{
+    position:fixed; inset:0; z-index:0; opacity:0.16; pointer-events:none;
+  }
 
-/* ---------- Mobile nav menu (slide-in panel, separate from inline desktop nav) ---------- */
-.nav-overlay{position:fixed; inset:0; background:rgba(11,14,17,0.6); z-index:65; opacity:0; pointer-events:none; transition:opacity .2s;}
-.nav-overlay.open{opacity:1; pointer-events:auto;}
-.nav-drawer{position:fixed; top:0; left:0; height:100%; width:min(300px,84vw); background:var(--surface); border-right:1px solid var(--line); z-index:75; transform:translateX(-100%); transition:transform .25s ease; display:flex; flex-direction:column;}
-.nav-drawer.open{transform:translateX(0);}
-.nav-drawer-head{padding:18px 18px; padding-top:calc(18px + env(safe-area-inset-top)); border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between;}
-.nav-drawer-head .brand{font-size:1.02rem;}
-.nav-drawer-body{flex:1; overflow-y:auto; padding:8px 10px calc(20px + env(safe-area-inset-bottom));}
-.nav-group-label{font-family:'IBM Plex Mono',monospace; font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); padding:16px 10px 6px;}
-.nav-drawer-body a{display:block; padding:13px 10px; border-radius:var(--radius); font-size:0.96rem; color:var(--text); text-decoration:none; transition:background .15s, color .15s;}
-.nav-drawer-body a:active, .nav-drawer-body a:hover{background:var(--surface-raised); color:var(--trace);}
+  /* ---------- boot sequence ---------- */
+  #boot{
+    position:fixed; inset:0; z-index:999; background:#050603; color:var(--amber);
+    font-family:'IBM Plex Mono', monospace; font-size:13px; line-height:1.9;
+    padding:60px; overflow:hidden; transition:opacity .5s ease, visibility .5s ease;
+  }
+  #boot.hidden{opacity:0; visibility:hidden;}
+  #bootLines{white-space:pre-wrap;}
+  #boot .cursor-blink{display:inline-block; width:8px; height:14px; background:var(--amber); margin-left:2px; animation:blink 1s step-end infinite; vertical-align:middle;}
+  @keyframes blink{50%{opacity:0;}}
 
-@media (max-width:860px){
-  .nav{padding:14px 16px;}
-  .nav-toggle{display:flex;}
-  .navlinks{display:none;}
-}
+  /* ---------- glitch text ---------- */
+  .glitch-wrap{position:relative; display:inline-block;}
+  .glitch-wrap.active::before, .glitch-wrap.active::after{
+    content:attr(data-text); position:absolute; left:0; top:0; width:100%; overflow:hidden;
+  }
+  .glitch-wrap.active::before{
+    color:var(--red); clip-path:inset(0 0 55% 0); transform:translate(-2px,-1px); opacity:0.85;
+    animation:glitchTop 0.35s steps(2) infinite;
+  }
+  .glitch-wrap.active::after{
+    color:#4affe0; clip-path:inset(45% 0 0 0); transform:translate(2px,1px); opacity:0.85;
+    animation:glitchBot 0.35s steps(2) infinite;
+  }
+  @keyframes glitchTop{0%{transform:translate(-2px,-1px);} 50%{transform:translate(2px,-1px);} 100%{transform:translate(-1px,1px);}}
+  @keyframes glitchBot{0%{transform:translate(2px,1px);} 50%{transform:translate(-2px,1px);} 100%{transform:translate(1px,-1px);}}
 
-.hero{position:relative; overflow:hidden; padding:88px 0 72px; border-bottom:1px solid var(--line);}
-.hero-grid{display:grid; grid-template-columns:1.1fr 0.9fr; gap:48px; align-items:center;}
-@media (max-width:860px){ .hero-grid{grid-template-columns:1fr;} }
-.eyebrow{display:inline-flex; align-items:center; gap:8px; color:var(--trace); font-family:'IBM Plex Mono',monospace; font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:18px;}
-.eyebrow::before{content:''; width:16px; height:1px; background:var(--trace);}
-h1.headline{font-size:clamp(2.1rem, 4vw, 3.1rem); font-weight:800; margin:0 0 20px; line-height:1.08;}
-h1.headline .accent{color:var(--copper-bright);}
-.hero p.lede{color:var(--muted); font-size:1.05rem; max-width:46ch; margin:0 0 32px;}
-.hero-ctas{display:flex; gap:14px; flex-wrap:wrap;}
-.btn{border-radius:var(--radius); padding:13px 24px; font-size:0.92rem; font-weight:600; border:1px solid transparent; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:transform .15s, border-color .15s, background .15s;}
-.btn-primary{background:var(--copper); color:#0B0E11;}
-.btn-primary:hover{background:var(--copper-bright); transform:translateY(-1px);}
-.btn-ghost{border-color:var(--line); color:var(--text); background:transparent;}
-.btn-ghost:hover{border-color:var(--trace); color:var(--trace);}
+  /* ---------- HUD corner brackets ---------- */
+  .hud-corner{position:fixed; width:22px; height:22px; border-color:var(--amber-dim); opacity:0.6; z-index:150; pointer-events:none;}
+  .hud-corner.tl{top:14px; left:14px; border-top:1.5px solid; border-left:1.5px solid;}
+  .hud-corner.tr{top:14px; right:14px; border-top:1.5px solid; border-right:1.5px solid;}
+  .hud-corner.bl{bottom:14px; left:14px; border-bottom:1.5px solid; border-left:1.5px solid;}
+  .hud-corner.br{bottom:14px; right:14px; border-bottom:1.5px solid; border-right:1.5px solid;}
 
-.trace-panel{position:relative; aspect-ratio:1/0.85; border:1px solid var(--line); background:var(--surface); border-radius:var(--radius); overflow:hidden;}
-.trace-panel svg{width:100%; height:100%; display:block;}
-.trace-line{fill:none; stroke:var(--trace); stroke-width:1.5; opacity:0.55; stroke-dasharray:6 260; animation:pulse 3.2s linear infinite;}
-.trace-line.copper{stroke:var(--copper); animation-duration:4.1s;}
-.trace-line.delay{animation-delay:1.1s;}
-@keyframes pulse{0%{stroke-dashoffset:266;} 100%{stroke-dashoffset:0;}}
-.node{fill:var(--trace);} .node.copper-node{fill:var(--copper-bright);}
-.panel-label{position:absolute; bottom:14px; left:16px; right:16px; font-family:'IBM Plex Mono',monospace; font-size:0.72rem; color:var(--muted); display:flex; justify-content:space-between;}
+  .term-cursor{display:inline-block; width:8px; height:15px; background:var(--amber); margin-left:4px; vertical-align:-2px; animation:blink 1s step-end infinite;}
 
-.section{padding:64px 0;}
-.section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:32px; flex-wrap:wrap; gap:12px;}
-.section-head h2{font-size:1.5rem; margin:0;}
-.section-head .idx{color:var(--copper-bright); font-family:'IBM Plex Mono',monospace; font-size:0.85rem; margin-right:10px;}
-.section-head p{color:var(--muted); font-size:0.9rem; margin:0;}
-.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:18px;}
-.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px; display:flex; flex-direction:column; gap:10px; transition:border-color .15s, transform .15s;}
-.card:hover{border-color:var(--copper); transform:translateY(-2px);}
-.card-thumb{height:110px; border-radius:var(--radius); background:var(--surface-raised); display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;}
-.card-thumb svg{width:56px; height:56px; color:var(--trace);}
-.card-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
-.compare-price{color:var(--muted); text-decoration:line-through; font-size:0.8rem; font-weight:400; margin-right:6px;}
-.discount-badge{font-size:0.68rem; font-weight:700; color:var(--trace); background:rgba(79,209,197,0.12); border:1px solid rgba(79,209,197,0.3); padding:1px 6px; border-radius:10px; margin-left:6px; vertical-align:middle;}
-.card-tag{position:absolute; top:8px; left:8px; font-size:0.62rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); border:1px solid var(--line); padding:2px 6px; border-radius:2px; background:rgba(11,14,17,0.7);}
-.card h3{font-size:0.98rem; margin:2px 0 0; font-weight:600; font-family:'IBM Plex Sans',sans-serif;}
-.card .desc{color:var(--muted); font-size:0.82rem; margin:0; flex:1;}
-.card-foot{display:flex; align-items:center; justify-content:space-between; margin-top:4px;}
-.price{color:var(--copper-bright); font-weight:600; font-size:1rem;}
-.add-btn{background:transparent; border:1px solid var(--trace); color:var(--trace); padding:7px 12px; border-radius:var(--radius); font-size:0.78rem; font-weight:600; transition:background .15s, color .15s;}
-.add-btn:hover{background:var(--trace); color:#0B0E11;}
-.add-btn:disabled{opacity:0.4; cursor:not-allowed;}
-.stock{font-size:0.72rem; color:var(--muted);}
-.stock.low{color:var(--danger);}
+  .card{overflow:hidden;}
+  .card::before{
+    content:""; position:absolute; inset:0; background:var(--amber); opacity:0; pointer-events:none; mix-blend-mode:overlay;
+    transition:opacity .08s;
+  }
+  .card:hover::before{ animation:cardGlitch 0.5s steps(6) 1; }
+  @keyframes cardGlitch{
+    0%{opacity:0.12;} 15%{opacity:0;} 30%{opacity:0.08;} 45%{opacity:0;} 60%{opacity:0.1;} 100%{opacity:0;}
+  }
+  .card h3{transition:letter-spacing .15s;}
+  .card:hover h3{letter-spacing:0.03em; text-shadow:1px 0 var(--red), -1px 0 #4affe0;}
 
-.overlay{position:fixed; inset:0; background:rgba(11,14,17,0.6); z-index:60; opacity:0; pointer-events:none; transition:opacity .2s;}
-.overlay.open{opacity:1; pointer-events:auto;}
-.drawer{position:fixed; top:0; right:0; height:100%; width:min(420px,92vw); background:var(--surface); border-left:1px solid var(--line); z-index:70; transform:translateX(100%); transition:transform .25s ease; display:flex; flex-direction:column;}
-.drawer.open{transform:translateX(0);}
-.drawer-head{padding:20px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between;}
-.drawer-head h3{margin:0; font-size:1.05rem;}
-.icon-btn{background:none; border:none; color:var(--muted); font-size:1.3rem; line-height:1; width:40px; height:40px; display:flex; align-items:center; justify-content:center; border-radius:50%;}
-.icon-btn:hover{color:var(--text); background:var(--surface-raised);}
-.drawer-body{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:16px 20px;}
-.cart-item{display:flex; gap:12px; padding:14px 0; border-bottom:1px solid var(--line);}
-.cart-item-thumb{width:52px; height:52px; background:var(--surface-raised); border-radius:var(--radius); flex-shrink:0; display:flex; align-items:center; justify-content:center;}
-.cart-item-thumb svg{width:26px; height:26px; color:var(--trace);}
-.cart-item-info{flex:1; min-width:0;}
-.cart-item-info h4{margin:0 0 4px; font-size:0.88rem; font-weight:600;}
-.qty-row{display:flex; align-items:center; gap:8px; margin-top:8px;}
-.qty-btn{width:30px; height:30px; border:1px solid var(--line); background:transparent; color:var(--text); border-radius:2px; font-size:0.95rem; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
-.qty-btn:active{border-color:var(--trace); color:var(--trace);}
-.remove-link{background:none; border:none; color:var(--muted); font-size:0.76rem; text-decoration:underline; margin-left:auto; padding:6px 2px;}
-.remove-link:hover{color:var(--danger);}
-.empty-cart{color:var(--muted); text-align:center; padding:60px 20px; font-size:0.9rem;}
-.drawer-foot{border-top:1px solid var(--line); padding:18px 20px calc(22px + env(safe-area-inset-bottom));}
-.subtotal-row{display:flex; justify-content:space-between; margin-bottom:16px; font-size:0.95rem;}
-.subtotal-row .price{font-size:1.15rem;}
+  a{color:inherit;}
+  ::selection{background:var(--amber); color:#0b0d0a;}
 
-#checkout{display:none;}
-#checkout.active{display:block;}
+  /* ---------- topbar ---------- */
+  .ticker{
+    background:var(--amber); color:#0b0d0a; font-size:11px; font-weight:600;
+    letter-spacing:0.08em; padding:6px 0; overflow:hidden; white-space:nowrap;
+  }
+  .ticker span{padding:0 28px; display:inline-block;}
+  .ticker-track{display:inline-block; animation:scroll 28s linear infinite;}
+  @keyframes scroll{from{transform:translateX(0);} to{transform:translateX(-50%);}}
 
-/* ---------- Info modal (Shipping/Contact/About/Terms/Privacy) ---------- */
-.modal-overlay{position:fixed; inset:0; background:rgba(11,14,17,0.65); z-index:80; opacity:0; pointer-events:none; transition:opacity .2s;}
-.modal-overlay.open{opacity:1; pointer-events:auto;}
-.modal-panel{position:fixed; z-index:85; background:var(--surface); border:1px solid var(--line); left:50%; top:50%; transform:translate(-50%,-48%); width:min(640px,92vw); max-height:82vh; border-radius:6px; display:flex; flex-direction:column; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;}
-.modal-panel.open{opacity:1; pointer-events:auto; transform:translate(-50%,-50%);}
-.modal-head{padding:18px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; flex-shrink:0;}
-.modal-head h3{margin:0; font-size:1.1rem; font-family:'JetBrains Mono',monospace;}
-.modal-body{padding:20px; overflow-y:auto; -webkit-overflow-scrolling:touch;}
-.modal-body .trust-card{margin-bottom:16px;}
-.modal-body .trust-card:last-child{margin-bottom:0;}
-.modal-body .payment-note{margin-bottom:16px;}
-@media (max-width:640px){
-  .modal-panel{left:0; right:0; top:auto; bottom:0; width:100%; max-height:88vh; transform:translateY(100%); border-radius:16px 16px 0 0; border-left:none; border-right:none; border-bottom:none;}
-  .modal-panel.open{transform:translateY(0);}
-  .modal-head{padding-top:calc(16px + env(safe-area-inset-top));}
-  .modal-body{padding:16px 16px calc(20px + env(safe-area-inset-bottom));}
-}
-.checkout-grid{display:grid; grid-template-columns:1fr 340px; gap:36px;}
-@media (max-width:800px){ .checkout-grid{grid-template-columns:1fr;} .checkout-grid .order-summary{order:-1;} }
-.form-field{margin-bottom:16px;}
-.form-field label{display:block; font-size:0.78rem; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;}
-.form-field input, .form-field textarea{width:100%; background:var(--surface); border:1px solid var(--line); color:var(--text); padding:11px 12px; border-radius:var(--radius); font-size:0.9rem; font-family:inherit;}
-.form-field input:focus, .form-field textarea:focus{border-color:var(--trace);}
-.form-row{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
-.order-summary{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; align-self:start;}
-@media (max-width:800px){ .order-summary{margin-bottom:24px;} }
-.order-summary h3{margin-top:0; font-size:1rem;}
-.summary-line{display:flex; justify-content:space-between; font-size:0.85rem; color:var(--muted); padding:6px 0;}
-.summary-line.total{color:var(--text); font-weight:600; border-top:1px solid var(--line); margin-top:8px; padding-top:12px; font-size:1rem;}
-.payment-note{background:rgba(184,115,51,0.08); border:1px solid rgba(184,115,51,0.35); border-radius:var(--radius); padding:12px 14px; font-size:0.8rem; color:var(--copper-bright); margin:18px 0;}
-.status-msg{font-size:0.85rem; margin-top:14px; padding:10px 12px; border-radius:var(--radius); display:none;}
-.status-msg.ok{display:block; background:rgba(79,209,197,0.1); border:1px solid rgba(79,209,197,0.35); color:var(--trace);}
-.status-msg.err{display:block; background:rgba(232,96,76,0.1); border:1px solid rgba(232,96,76,0.35); color:var(--danger);}
+  header.site{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 40px; border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:rgba(5,8,5,0.92); backdrop-filter:blur(6px); z-index:100;
+  }
+  .logo{display:flex; align-items:center; gap:10px;}
+  .logo .mark{
+    width:34px; height:34px; border:1.5px solid var(--amber); display:flex; align-items:center; justify-content:center;
+    font-size:15px; color:var(--amber); font-weight:700;
+  }
+  .logo .word{font-size:20px; letter-spacing:0.02em;}
+  .logo .word b{color:var(--amber);}
+  nav.main{display:flex; gap:32px; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:var(--paper-dim);}
+  nav.main a{text-decoration:none; transition:color .15s;}
+  nav.main a:hover{color:var(--amber);}
+  .cart-btn{
+    border:1px solid var(--amber-dim); color:var(--amber); padding:9px 16px; font-size:12px;
+    text-transform:uppercase; letter-spacing:0.08em; background:transparent; cursor:pointer; font-family:inherit;
+    display:flex; align-items:center; gap:8px; transition: all .15s;
+  }
+  .cart-btn:hover{background:var(--amber); color:#0b0d0a;}
+  .cart-count{background:var(--amber); color:#0b0d0a; border-radius:50%; width:18px; height:18px; font-size:10px; display:flex; align-items:center; justify-content:center; font-weight:700;}
+  .cart-btn:hover .cart-count{background:#0b0d0a; color:var(--amber);}
 
-footer{border-top:1px solid var(--line); padding:32px 0; color:var(--muted); font-size:0.8rem;}
-.foot-row{display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;}
-.foot-links a{margin-left:18px; text-decoration:none; color:var(--muted);}
-.foot-links a:hover{color:var(--trace);}
-.foot-meta{margin-top:10px; font-size:0.78rem; color:var(--muted); line-height:1.7;}
-.foot-meta a{color:var(--muted); text-decoration:none;}
-.foot-meta a:hover{color:var(--trace);}
+  /* ---------- hero ---------- */
+  .hero{
+    padding:90px 40px 70px; border-bottom:1px solid var(--line);
+    display:grid; grid-template-columns:1.3fr 1fr; gap:60px; align-items:end;
+    position:relative; overflow:hidden;
+  }
+  .hero::after{
+    content:""; position:absolute; right:-10%; top:-30%; width:520px; height:520px; border-radius:50%;
+    background:radial-gradient(circle, rgba(0,255,102,0.10), transparent 65%); pointer-events:none;
+  }
+  .eyebrow{
+    font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:var(--amber);
+    display:flex; align-items:center; gap:10px; margin-bottom:22px;
+  }
+  .eyebrow .dot{width:6px; height:6px; background:var(--amber); border-radius:50%; box-shadow:0 0 8px var(--amber); animation:pulse 1.8s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  h1.hero-title{
+    font-size:clamp(44px, 6vw, 84px); line-height:0.94; text-transform:uppercase; color:var(--paper);
+  }
+  h1.hero-title em{font-style:normal; color:var(--amber);}
+  .hero-sub{color:var(--paper-dim); font-size:14px; line-height:1.7; max-width:480px; margin-top:22px;}
+  .hero-meta{
+    border:1px solid var(--line); background:var(--bg-panel); padding:24px; font-size:12px;
+  }
+  .hero-meta .row{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px dashed var(--line); color:var(--paper-dim);}
+  .hero-meta .row:last-child{border-bottom:none;}
+  .hero-meta .row b{color:var(--amber); font-weight:600;}
 
-.trust-grid{display:grid; grid-template-columns:1fr 1fr; gap:36px;}
-@media (max-width:800px){ .trust-grid{grid-template-columns:1fr;} }
-.trust-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:22px;}
-.trust-card h3{margin:0 0 14px; font-size:1rem;}
-.trust-row{display:flex; gap:12px; align-items:flex-start; margin-bottom:16px; font-size:0.87rem; color:var(--muted); line-height:1.5;}
-.trust-row:last-child{margin-bottom:0;}
-.trust-row .ico{width:34px; height:34px; flex-shrink:0; border-radius:var(--radius); background:var(--surface-raised); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; color:var(--trace);}
-.trust-row .ico svg{width:17px; height:17px;}
-.trust-row > div{padding-top:2px;}
-.trust-row strong{display:block; color:var(--text); font-weight:600; margin-bottom:3px; font-size:0.88rem;}
-.trust-row a{color:var(--trace); text-decoration:none; word-break:break-word;}
-.trust-row a:hover{text-decoration:underline;}
-.policy-list{margin:0; padding-left:0; list-style:none; font-size:0.86rem; color:var(--muted); line-height:1.55;}
-.policy-list li{padding:11px 0; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:flex-start;}
-.policy-list li:last-child{border-bottom:none;}
-.policy-list li::before{content:'—'; color:var(--copper-bright); flex-shrink:0;}
+  /* ---------- notice ---------- */
+  .notice{
+    border-bottom:1px solid var(--line); background:var(--bg-panel-2);
+    padding:16px 40px; font-size:11.5px; color:var(--paper-dim); line-height:1.7; letter-spacing:0.01em;
+  }
+  .notice b{color:var(--amber);}
 
-/* ---------- Mobile pass ---------- */
-@media (max-width:640px){
-  .wrap{padding:0 16px;}
-  header{padding-top:env(safe-area-inset-top);}
-  .nav{padding:12px 16px;}
-  .brand{font-size:1.05rem;}
-  .cart-btn{padding:9px 12px; font-size:0.82rem; min-height:40px;}
+  /* ---------- catalog ---------- */
+  .catalog{padding:70px 40px 40px;}
+  .catalog-head{display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:34px; flex-wrap:wrap; gap:16px;}
+  .catalog-head h2{font-size:34px; text-transform:uppercase; letter-spacing:0.01em;}
+  .catalog-head p{color:var(--paper-dim); font-size:12px; max-width:360px; line-height:1.6;}
 
-  .hero{padding:36px 0 36px;}
-  .eyebrow{font-size:0.7rem; margin-bottom:12px;}
-  h1.headline{font-size:1.65rem; margin-bottom:14px;}
-  .hero p.lede{font-size:0.92rem; margin-bottom:22px; max-width:none;}
-  .hero-ctas{gap:10px; flex-direction:column; align-items:stretch;}
-  .btn{padding:13px 18px; font-size:0.88rem; justify-content:center; min-height:46px;}
-  .trace-panel{aspect-ratio:1/0.65;}
+  .filters{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:36px;}
+  .filter-btn{
+    border:1px solid var(--line); background:transparent; color:var(--paper-dim); padding:7px 14px;
+    font-size:11px; letter-spacing:0.06em; text-transform:uppercase; font-family:inherit; cursor:pointer; transition:all .15s;
+  }
+  .filter-btn:hover, .filter-btn.active{border-color:var(--amber); color:var(--amber);}
 
-  .section{padding:36px 0;}
-  .section-head{margin-bottom:20px; flex-direction:column; align-items:flex-start; gap:4px;}
-  .section-head > div{display:flex; align-items:center; gap:8px;}
-  .section-head .idx{margin-right:0; background:var(--surface); border:1px solid var(--line); padding:2px 7px; border-radius:10px; font-size:0.7rem;}
-  .section-head h2{font-size:1.2rem;}
-  .section-head p{font-size:0.82rem; line-height:1.5;}
+  .grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:1px;
+    background:var(--line); border:1px solid var(--line);
+  }
+  .card{
+    background:var(--bg); padding:26px 22px 22px; display:flex; flex-direction:column; gap:14px;
+    position:relative; transition:background .2s;
+  }
+  .card:hover{background:var(--bg-panel);}
+  .card-top{display:flex; justify-content:space-between; align-items:flex-start;}
+  .sku{font-size:10px; color:var(--paper-dim); letter-spacing:0.05em;}
+  .tag{
+    font-size:9.5px; text-transform:uppercase; letter-spacing:0.08em; padding:3px 8px; border:1px solid var(--amber-faint); color:var(--amber-dim);
+  }
+  .tag.new{border-color:var(--red); color:var(--red);}
+  .glyph{
+    width:100%; height:110px; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); background:
+      repeating-linear-gradient(45deg, rgba(0,255,102,0.03) 0px, rgba(0,255,102,0.03) 1px, transparent 1px, transparent 10px);
+    font-size:44px;
+    color:var(--amber-dim); overflow:hidden;
+  }
+  .glyph img{width:100%; height:100%; object-fit:cover;}
+  .card h3{font-size:19px; text-transform:uppercase; letter-spacing:0.01em; color:var(--paper);}
+  .card .desc{font-size:12px; color:var(--paper-dim); line-height:1.6; min-height:52px;}
+  .spec-list{font-size:10.5px; color:var(--paper-dim); display:flex; flex-direction:column; gap:4px; border-top:1px dashed var(--line); padding-top:10px;}
+  .spec-list div{display:flex; justify-content:space-between;}
+  .spec-list b{color:var(--amber-dim); font-weight:500;}
+  .card-foot{display:flex; align-items:center; justify-content:space-between; margin-top:auto; padding-top:6px;}
+  .price{font-size:20px; color:var(--amber); font-weight:600;}
+  .price small{font-size:10px; color:var(--paper-dim); font-weight:400;}
+  .add-btn{
+    border:1px solid var(--amber); color:var(--amber); background:transparent; font-family:inherit;
+    font-size:11px; letter-spacing:0.06em; text-transform:uppercase; padding:9px 14px; cursor:pointer; transition:all .15s;
+  }
+  .add-btn:hover{background:var(--amber); color:#0b0d0a;}
+  .add-btn.added{background:var(--amber); color:#0b0d0a;}
 
-  .grid{grid-template-columns:repeat(2,1fr); gap:10px;}
-  .card{padding:12px; gap:8px;}
-  .card-thumb{height:82px;}
-  .card-thumb svg{width:38px; height:38px;}
-  .card-tag{font-size:0.58rem; padding:2px 5px;}
-  .card h3{font-size:0.86rem; line-height:1.25;}
-  .card .desc{font-size:0.76rem; -webkit-line-clamp:2; display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden;}
-  .card-foot{flex-wrap:wrap; gap:6px;}
-  .price{font-size:0.92rem;}
-  .compare-price{font-size:0.72rem;}
-  .discount-badge{font-size:0.6rem;}
-  .add-btn{padding:9px 12px; min-height:40px; width:100%; justify-content:center; font-size:0.8rem;}
+  /* ---------- signature: signal strip ---------- */
+  .signal{
+    margin:70px 40px; border:1px solid var(--line); background:var(--bg-panel); padding:34px 30px; overflow:hidden;
+  }
+  .signal-head{display:flex; justify-content:space-between; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--paper-dim); margin-bottom:18px;}
+  .signal-head b{color:var(--amber);}
+  .wave{width:100%; height:70px;}
 
-  .trust-grid{gap:14px;}
-  .trust-card{padding:18px;}
-  .trust-card h3{font-size:0.95rem; margin-bottom:16px;}
-  .trust-row{gap:12px; margin-bottom:18px; font-size:0.85rem;}
-  .trust-row .ico{width:32px; height:32px;}
-  .policy-list li{padding:12px 0; font-size:0.85rem;}
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--line); padding:40px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:20px; font-size:11px; color:var(--paper-dim);}
+  footer .fcol h4{color:var(--amber); font-size:11px; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;}
+  footer .fcol div{line-height:2;}
 
-  .overlay{-webkit-tap-highlight-color:transparent;}
-  .drawer{width:100vw;}
-  .drawer-head{padding:16px; padding-top:calc(16px + env(safe-area-inset-top));}
-  .cart-item-thumb{width:46px; height:46px;}
-  .cart-item-info h4{font-size:0.85rem;}
+  /* ---------- cart drawer ---------- */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:300; opacity:0; pointer-events:none; transition:opacity .2s;}
+  .overlay.open{opacity:1; pointer-events:auto;}
+  .drawer{
+    position:fixed; top:0; right:-420px; width:400px; max-width:90vw; height:100%; background:var(--bg-panel);
+    border-left:1px solid var(--amber-faint); z-index:301; transition:right .25s ease; display:flex; flex-direction:column;
+  }
+  .drawer.open{right:0;}
+  .drawer-head{padding:22px 24px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;}
+  .drawer-head h3{text-transform:uppercase; font-size:16px; letter-spacing:0.05em;}
+  .close-btn{background:none; border:none; color:var(--paper-dim); font-size:20px; cursor:pointer; font-family:inherit;}
+  .drawer-items{flex:1; overflow-y:auto; padding:10px 24px;}
+  .drawer-item{display:flex; justify-content:space-between; gap:10px; padding:16px 0; border-bottom:1px dashed var(--line); font-size:12px;}
+  .drawer-item .name{color:var(--paper);}
+  .drawer-item .qty{color:var(--paper-dim); font-size:11px;}
+  .drawer-item .rm{color:var(--red); cursor:pointer; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; background:none; border:none; font-family:inherit; padding:0; margin-top:4px;}
+  .empty-cart{color:var(--paper-dim); font-size:12px; padding:30px 0; text-align:center; line-height:1.7;}
+  .drawer-foot{padding:22px 24px; border-top:1px solid var(--line);}
+  .drawer-foot .total{display:flex; justify-content:space-between; font-size:15px; margin-bottom:16px;}
+  .drawer-foot .total b{color:var(--amber);}
+  .checkout-btn{
+    width:100%; background:var(--amber); color:#0b0d0a; border:none; padding:14px; font-family:inherit;
+    font-size:12px; letter-spacing:0.08em; text-transform:uppercase; font-weight:700; cursor:pointer;
+  }
+  .checkout-btn:hover{background:#ffc84a;}
 
-  .form-row{grid-template-columns:1fr; gap:0;}
-  .form-field{margin-bottom:14px;}
-  .form-field input, .form-field textarea{font-size:16px; padding:12px;}
-  .checkout-grid{gap:20px;}
-  .order-summary{padding:16px;}
-  #cf-coupon{min-width:0;}
-  .order-summary > .form-field > div{flex-wrap:nowrap;}
+  @media (max-width:860px){
+    .hero{grid-template-columns:1fr; padding:60px 20px;}
+    header.site{padding:16px 20px;}
+    nav.main{display:none;}
+    .catalog, .notice, footer{padding-left:20px; padding-right:20px;}
+    .signal{margin:50px 20px;}
+  }
 
-  footer{padding:28px 0 calc(28px + env(safe-area-inset-bottom));}
-  .foot-row{flex-direction:column; align-items:flex-start; gap:16px;}
-  .foot-links{display:flex; flex-wrap:wrap; gap:6px 16px;}
-  .foot-links a{margin-left:0; padding:4px 0;}
-}
-@media (max-width:400px){
-  h1.headline{font-size:1.5rem;}
-  .grid{grid-template-columns:1fr 1fr; gap:8px;}
-  .card-thumb{height:74px;}
-}
-@media (max-width:340px){
-  .grid{grid-template-columns:1fr;}
-  .card-thumb{height:100px;}
-}
+  @media (prefers-reduced-motion: reduce){
+    .ticker-track, .eyebrow .dot{animation:none;}
+    html{scroll-behavior:auto;}
+  }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="nav wrap">
-    <a href="#/" class="brand" onclick="route('store')"><span class="dot"></span>Circuit<span class="sub">Bazaar</span></a>
-    <nav class="navlinks" id="navLinks">
-      <a href="#catalog">Catalog</a>
-      <a href="javascript:void(0)" onclick="openInfo('shipping')">Shipping</a>
-      <a href="javascript:void(0)" onclick="openInfo('contact')">Contact</a>
-      <a href="javascript:void(0)" onclick="openInfo('about')">About</a>
-      <a href="javascript:void(0)" onclick="openInfo('terms')">Terms</a>
-      <a href="javascript:void(0)" onclick="openInfo('privacy')">Privacy</a>
-    </nav>
-    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" onclick="toggleNav()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-    </button>
-    <button class="cart-btn" onclick="toggleCart(true)">Cart <span class="cart-count" id="cartCount">0</span></button>
+<div id="boot">
+  <div id="bootLines"></div>
+</div>
+
+<canvas id="matrixRain"></canvas>
+<div class="hud-corner tl"></div>
+<div class="hud-corner tr"></div>
+<div class="hud-corner bl"></div>
+<div class="hud-corner br"></div>
+
+<div class="ticker"><div class="ticker-track">
+  <span>SDR STOCK REPLENISHED — HACKRF ONE R9</span>
+  <span>NEW: O.MG CABLE ELITE V2 IN STOCK</span>
+  <span>FLIPPER ZERO — BACK ORDER CLEARED</span>
+  <span>FREE STATIC-SAFE SHIPPING OVER ₹8,000</span>
+  <span>SDR STOCK REPLENISHED — HACKRF ONE R9</span>
+  <span>NEW: O.MG CABLE ELITE V2 IN STOCK</span>
+  <span>FLIPPER ZERO — BACK ORDER CLEARED</span>
+  <span>FREE STATIC-SAFE SHIPPING OVER ₹8,000</span>
+</div></div>
+
+<header class="site">
+  <div class="logo">
+    <div class="mark">▓</div>
+    <div class="word">DARK<b>NET</b></div>
   </div>
+  <nav class="main">
+    <a href="#catalog">Catalog</a>
+    <a href="#">RF &amp; Wireless</a>
+    <a href="#">Dev Boards</a>
+    <a href="#">Field Notes</a>
+  </nav>
+  <button class="cart-btn" onclick="toggleCart(true)">
+    CART <span class="cart-count" id="cartCount">0</span>
+  </button>
 </header>
 
-<div class="nav-overlay" id="navOverlay" onclick="toggleNav(false)"></div>
-<aside class="nav-drawer" id="navDrawer">
-  <div class="nav-drawer-head">
-    <a href="#/" class="brand" onclick="route('store'); toggleNav(false);"><span class="dot"></span>Circuit<span class="sub">Bazaar</span></a>
-    <button class="icon-btn" onclick="toggleNav(false)" aria-label="Close menu">✕</button>
+<section class="hero">
+  <div>
+    <div class="eyebrow"><span class="dot"></span> AUTHORIZED RESEARCH &amp; AUDIT HARDWARE</div>
+    <h1 class="display hero-title">
+      <span class="glitch-wrap" id="glitchTitle" data-text="TOOLS FOR THE">Tools for the</span><br>
+      <em>bench,</em> not the<br>black market.
+    </h1>
+    <p class="hero-sub">Ten pieces of hardware we actually keep in our own kit — for wireless auditing, RFID research, embedded prototyping, and authorized red-team engagements. Every listing ships with its legitimate-use documentation.<span class="term-cursor"></span></p>
   </div>
-  <div class="nav-drawer-body" id="navDrawerBody">
-    <a href="#catalog">Catalog</a>
-    <div class="nav-group-label">Info</div>
-    <a href="javascript:void(0)" onclick="openInfo('shipping'); toggleNav(false);">Shipping & returns</a>
-    <a href="javascript:void(0)" onclick="openInfo('contact'); toggleNav(false);">Contact us</a>
-    <a href="javascript:void(0)" onclick="openInfo('about'); toggleNav(false);">About</a>
-    <a href="javascript:void(0)" onclick="openInfo('terms'); toggleNav(false);">Terms & Conditions</a>
-    <a href="javascript:void(0)" onclick="openInfo('privacy'); toggleNav(false);">Privacy Policy</a>
+  <div class="hero-meta">
+    <div class="row"><span>Catalog size</span><b>10 SKUs</b></div>
+    <div class="row"><span>Categories</span><b>RF / RFID / Embedded / Network</b></div>
+    <div class="row"><span>Intended use</span><b>Authorized testing only</b></div>
+    <div class="row"><span>Warranty</span><b>12 months, all units</b></div>
+    <div class="row"><span>Dispatch</span><b>24–48h, anti-static packed</b></div>
   </div>
-</aside>
+</section>
 
-<main id="store">
-  <section class="hero">
-    <div class="wrap hero-grid">
-      <div>
-        <div class="eyebrow">Dev boards · Modules · Prototyping kits</div>
-        <h1 class="headline">Build the thing<br>on your <span class="accent">breadboard</span> first.</h1>
-        <p class="lede">Curated microcontrollers, sensors and prototyping hardware for makers, students and embedded-systems hobbyists. Ships with datasheets, not guesswork.</p>
-        <div class="hero-ctas">
-          <a href="#catalog" class="btn btn-primary">Browse catalog</a>
-        </div>
-      </div>
-      <div class="trace-panel" aria-hidden="true">
-        <svg viewBox="0 0 400 340">
-          <path class="trace-line" d="M20 40 H160 V100 H340" />
-          <path class="trace-line copper delay" d="M20 160 H100 V220 H260 V280 H380" />
-          <path class="trace-line delay" d="M40 300 H180 V40 H340 V180" />
-          <circle class="node" cx="20" cy="40" r="4"/><circle class="node" cx="340" cy="100" r="4"/>
-          <circle class="node copper-node" cx="20" cy="160" r="4"/><circle class="node copper-node" cx="380" cy="280" r="4"/>
-          <circle class="node" cx="40" cy="300" r="4"/><circle class="node" cx="340" cy="180" r="4"/>
-        </svg>
-        <div class="panel-label"><span>REV. 03</span><span>230mm × 195mm</span></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section wrap" id="catalog">
-    <div class="section-head">
-      <div><span class="idx">01</span><h2 style="display:inline;">Catalog</h2></div>
-      <p id="catalogNote">Loading current stock…</p>
-    </div>
-    <div class="grid" id="productGrid"></div>
-  </section>
-
-</main>
-
-<main id="checkout">
-  <div class="wrap section">
-    <div class="section-head">
-      <div><span class="idx">→</span><h2 style="display:inline;">Checkout</h2></div>
-      <p><a href="#/" onclick="route('store')" style="color:var(--trace); text-decoration:none;">← Back to catalog</a></p>
-    </div>
-    <div class="checkout-grid">
-      <div>
-        <form id="checkoutForm">
-          <div class="form-row">
-            <div class="form-field"><label for="cf-name">Full name</label><input id="cf-name" required></div>
-            <div class="form-field"><label for="cf-email">Email</label><input id="cf-email" type="email" required></div>
-          </div>
-          <div class="form-row">
-            <div class="form-field"><label for="cf-phone">Phone</label><input id="cf-phone" required></div>
-            <div class="form-field"><label for="cf-pin">PIN code</label><input id="cf-pin" required></div>
-          </div>
-          <div class="form-field"><label for="cf-address">Shipping address</label>
-            <textarea id="cf-address" rows="3" required></textarea>
-            <button type="button" class="btn btn-ghost" id="locateBtn" style="margin-top:8px; font-size:0.78rem; padding:8px 14px;" onclick="useMyLocation()">📍 Use my current location</button>
-            <div class="status-msg" id="locateStatus"></div>
-          </div>
-          <div style="position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;" aria-hidden="true">
-            <label for="cf-hp">Leave this field blank</label>
-            <input id="cf-hp" name="cf-hp" tabindex="-1" autocomplete="off">
-          </div>
-          <div class="payment-note">Online payment isn't connected yet. Submitting reserves your order as <strong>pending payment</strong> — you'll be contacted to complete payment before it ships.</div>
-          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;" id="checkoutSubmitBtn">Place order</button>
-          <div class="status-msg" id="checkoutStatus"></div>
-        </form>
-      </div>
-      <div class="order-summary">
-        <h3>Order summary</h3>
-        <div id="summaryLines"></div>
-        <div class="form-field" style="margin-top:14px;">
-          <label for="cf-coupon">Coupon code</label>
-          <div style="display:flex; gap:8px;">
-            <input id="cf-coupon" placeholder="e.g. WELCOME10" style="flex:1; text-transform:uppercase;">
-            <button type="button" class="btn btn-ghost" style="padding:11px 16px;" onclick="applyCoupon()">Apply</button>
-          </div>
-          <div class="status-msg" id="couponStatus"></div>
-        </div>
-        <div class="summary-line" id="discountLine" style="display:none; color:var(--trace);"><span>Discount</span><span id="discountAmount">−₹0</span></div>
-        <div class="summary-line total"><span>Total</span><span class="price" id="summaryTotal">₹0</span></div>
-      </div>
+<section class="catalog" id="catalog">
+  <div class="catalog-head">
+    <div>
+      <h2 class="display">The Catalog</h2>
+      <p>Field-tested hardware, sorted by what it's actually for — not marketing category.</p>
     </div>
   </div>
-</main>
 
-<div class="overlay" id="overlay" onclick="toggleCart(false)"></div>
-<aside class="drawer" id="drawer">
-  <div class="drawer-head"><h3>Your cart</h3><button class="icon-btn" onclick="toggleCart(false)">✕</button></div>
-  <div class="drawer-body" id="drawerBody"><div class="empty-cart">Your cart is empty.</div></div>
-  <div class="drawer-foot" id="drawerFoot" style="display:none;">
-    <div class="subtotal-row"><span>Subtotal</span><span class="price" id="cartSubtotal">₹0</span></div>
-    <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="goToCheckout()">Checkout</button>
+  <div class="filters">
+    <button class="filter-btn active" data-f="all">All</button>
+    <button class="filter-btn" data-f="rf">RF / Wireless</button>
+    <button class="filter-btn" data-f="rfid">RFID / NFC</button>
+    <button class="filter-btn" data-f="embedded">Embedded</button>
+    <button class="filter-btn" data-f="network">Network</button>
   </div>
-</aside>
+
+  <div class="grid" id="productGrid"></div>
+</section>
+
+<section class="signal">
+  <div class="signal-head"><span>LIVE BENCH SIGNAL — CH.7 CAPTURE</span><b>430.250 MHz · -62 dBm</b></div>
+  <svg class="wave" viewBox="0 0 1200 70" preserveAspectRatio="none">
+    <path d="M0,35 Q20,10 40,35 T80,35 T120,20 T160,35 T200,50 T240,35 T280,8 T320,35 T360,35 T400,42 T440,35 T480,15 T520,35 T560,35 T600,55 T640,35 T680,25 T720,35 T760,35 T800,10 T840,35 T880,35 T920,45 T960,35 T1000,20 T1040,35 T1080,35 T1120,30 T1160,35 T1200,35"
+      fill="none" stroke="#00ff66" stroke-width="1.5" opacity="0.85"/>
+  </svg>
+</section>
 
 <footer>
-  <div class="wrap foot-row">
-    <div>
-      <span>CircuitBazaar — maker & prototyping hardware.</span>
-      <div class="foot-meta">
-        Raipur, Chhattisgarh, India · <a href="mailto:sunny22101082@gmail.com">sunny22101082@gmail.com</a>
-      </div>
-    </div>
-    <span class="foot-links"><a href="#catalog">Catalog</a><a href="javascript:void(0)" onclick="openInfo('shipping')">Shipping & returns</a><a href="javascript:void(0)" onclick="openInfo('contact')">Contact</a><a href="javascript:void(0)" onclick="openInfo('about')">About</a><a href="javascript:void(0)" onclick="openInfo('terms')">Terms</a><a href="javascript:void(0)" onclick="openInfo('privacy')">Privacy</a></span>
+  <div class="fcol">
+    <h4>DARKNET</h4>
+    <div>Security research hardware</div>
+    <div>Sold for authorized use only</div>
+  </div>
+  <div class="fcol">
+    <h4>Catalog</h4>
+    <div>RF &amp; Wireless</div>
+    <div>RFID &amp; NFC</div>
+    <div>Embedded / Dev Boards</div>
+    <div>Network Access</div>
+  </div>
+  <div class="fcol">
+    <h4>Support</h4>
+    <div>Shipping &amp; returns</div>
+    <div>Warranty claims</div>
+    <div>Acceptable use policy</div>
+  </div>
+  <div class="fcol">
+    <h4>Status</h4>
+    <div>All systems nominal</div>
+    <div>Bench signal: locked</div>
   </div>
 </footer>
 
-<div class="modal-overlay" id="modalOverlay" onclick="closeInfo()"></div>
-<div class="modal-panel" id="modalPanel">
-  <div class="modal-head"><h3 id="modalTitle">Info</h3><button class="icon-btn" onclick="closeInfo()" aria-label="Close">✕</button></div>
-  <div class="modal-body" id="modalBody"></div>
-</div>
-
-<div id="infoStore" style="display:none;">
-
-  <div id="info-shipping" data-title="Shipping & returns">
-    <div class="trust-card">
-      <h3>Shipping</h3>
-      <ul class="policy-list">
-        <li>Orders are checked and packed within 1–2 business days.</li>
-        <li>Payment collection is being finalized — placing an order reserves your items, and our team will follow up to confirm payment before dispatch.</li>
-        <li>Shipped across India; delivery timelines depend on your pincode and courier serviceability.</li>
-      </ul>
-    </div>
-    <div class="trust-card">
-      <h3>Returns & support</h3>
-      <ul class="policy-list">
-        <li>Report damaged, missing, or incorrect items within 48 hours of delivery.</li>
-        <li>Replacements are handled case-by-case for verified manufacturing defects.</li>
-        <li>Reach us any time at the contact details below — a real person reads every message.</li>
-      </ul>
-    </div>
+<div class="overlay" id="overlay" onclick="toggleCart(false)"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <h3>Your Cart</h3>
+    <button class="close-btn" onclick="toggleCart(false)">&times;</button>
   </div>
-
-  <div id="info-contact" data-title="Contact us">
-    <div class="trust-card">
-      <h3>Get in touch</h3>
-      <div class="trust-row">
-        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18v14H3z"/><path d="M3 5l9 8 9-8"/></svg></span>
-        <div><strong>Email</strong><a href="mailto:sunny22101082@gmail.com">sunny22101082@gmail.com</a></div>
-      </div>
-      <div class="trust-row">
-        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
-        <div><strong>Address</strong>CircuitBazaar, Raipur, Chhattisgarh, India</div>
-      </div>
-      <div class="trust-row">
-        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
-        <div><strong>Response time</strong>We usually reply within 24–48 hours.</div>
-      </div>
-    </div>
-    <div class="trust-card">
-      <h3>Send a message</h3>
-      <form id="contactForm">
-        <div class="form-field"><label for="ct-name">Name</label><input id="ct-name" required></div>
-        <div class="form-field"><label for="ct-email">Email</label><input id="ct-email" type="email" required></div>
-        <div class="form-field"><label for="ct-message">Message</label><textarea id="ct-message" rows="4" required></textarea></div>
-        <div style="position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;" aria-hidden="true">
-          <label for="ct-hp">Leave this field blank</label>
-          <input id="ct-hp" name="ct-hp" tabindex="-1" autocomplete="off">
-        </div>
-        <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;" id="contactSubmitBtn">Send message</button>
-        <div class="status-msg" id="contactStatus"></div>
-      </form>
-    </div>
+  <div class="drawer-items" id="drawerItems"></div>
+  <div class="drawer-foot">
+    <div class="total"><span>Total</span><b id="cartTotal">₹0</b></div>
+    <button class="checkout-btn" onclick="alert('This is a demo storefront — no live checkout is connected.')">Checkout</button>
   </div>
-
-  <div id="info-about" data-title="About us">
-    <div class="trust-card">
-      <p style="color:var(--muted); font-size:0.92rem; margin:0 0 12px;">CircuitBazaar is a small, independently-run store selling development boards, sensors, modules and prototyping hardware for makers, students and embedded-systems hobbyists across India. We're based in Raipur, Chhattisgarh.</p>
-      <p style="color:var(--muted); font-size:0.92rem; margin:0;">We started CircuitBazaar because sourcing reliable, well-documented components locally was harder than it should be. Every product we list ships with a datasheet or reference link — not guesswork.</p>
-    </div>
-  </div>
-
-  <div id="info-terms" data-title="Terms & Conditions">
-    <div class="trust-card">
-      <h3>Orders & pricing</h3>
-      <ul class="policy-list">
-        <li>All prices are listed in Indian Rupees (₹), inclusive of applicable taxes unless stated otherwise.</li>
-        <li>Placing an order reserves items against current stock. Until online payment is live, orders are marked <strong>pending payment</strong> until our team confirms it with you.</li>
-        <li>We reserve the right to cancel an order — with a full refund if payment was collected — if items are unavailable or a pricing error is found.</li>
-      </ul>
-    </div>
-    <div class="trust-card">
-      <h3>Payments & liability</h3>
-      <ul class="policy-list">
-        <li>Online payments, once enabled, are processed securely by our payment partner, Razorpay. We never store your card, UPI, or bank details.</li>
-        <li>Products are intended for prototyping, educational and hobbyist use. Always follow the datasheet and safety guidance for any component, especially those involving mains voltage.</li>
-        <li>We may update these terms at any time; continued use of the site means you accept the current version.</li>
-      </ul>
-    </div>
-  </div>
-
-  <div id="info-privacy" data-title="Privacy Policy">
-    <div class="trust-card">
-      <h3>What we collect & why</h3>
-      <ul class="policy-list">
-        <li>Name, email, phone, shipping address and order details — collected when you check out or send a message, used only to process your order and respond to you.</li>
-        <li>If you tap "Use my current location," your device's coordinates are sent once to a map lookup service to pre-fill your address. We don't store raw location data — only the address you submit.</li>
-        <li>Order, buyer and message data is stored in our database, protected by rules that only let our signed-in admin team read or manage it — visitors can only submit new records, never read others'.</li>
-      </ul>
-    </div>
-    <div class="trust-card">
-      <h3>Payments, cookies & your rights</h3>
-      <ul class="policy-list">
-        <li>We never store your card, UPI, or bank details — payments are handled directly by Razorpay under its own security standards.</li>
-        <li>No third-party ad trackers are used; your cart lives only in your browser's memory for the current session.</li>
-        <li>You can ask us to access, correct, or delete your personal data any time — email <a href="mailto:sunny22101082@gmail.com" style="color:var(--trace);">sunny22101082@gmail.com</a>.</li>
-      </ul>
-    </div>
-  </div>
-
 </div>
 
 <script>
-const FALLBACK_PRODUCTS = [
-  { id: 1, name: "ESP32 Dev Board (WROOM-32)", description: "Dual-core Wi-Fi + BLE microcontroller board for IoT prototyping.", price: 499, compare_price: 649, stock: 34, tag: "MCU" },
-  { id: 2, name: "Arduino Uno R3 (Compatible)", description: "Classic ATmega328P board for beginner and classroom projects.", price: 549, compare_price: null, stock: 40, tag: "MCU" },
-  { id: 3, name: "Breadboard + Jumper Wire Kit", description: "830-point breadboard with 120 male-male jumper wires.", price: 249, stock: 60, tag: "Prototyping" },
-  { id: 4, name: "0.96\" OLED Display Module (I2C)", description: "128x64 monochrome display, common for status readouts.", price: 299, stock: 25, tag: "Display" },
-  { id: 5, name: "DHT22 Temp & Humidity Sensor", description: "Digital sensor for environmental monitoring projects.", price: 349, stock: 20, tag: "Sensor" },
-  { id: 6, name: "4-Channel Relay Module", description: "Optically isolated relay board for switching mains-powered loads.", price: 279, stock: 18, tag: "Actuator" },
-  { id: 7, name: "L298N Motor Driver Board", description: "Dual H-bridge driver for DC motors and small robotics builds.", price: 199, stock: 22, tag: "Motor" },
-  { id: 8, name: "RFID/NFC Reader Module (RC522)", description: "13.56MHz read/write module for access-control learning projects.", price: 229, stock: 15, tag: "RF/ID" },
-  { id: 9, name: "Soldering Iron Starter Kit", description: "60W adjustable iron, stand, solder wire and desoldering pump.", price: 899, stock: 12, tag: "Tools" },
-  { id: 10, name: "18650 Battery Holder + BMS", description: "Dual-cell holder with protection circuit for portable builds.", price: 179, stock: 30, tag: "Power" }
+// Fallback catalog — used only if Supabase isn't configured yet or the fetch fails,
+// so the storefront never shows up empty. Once connected, live data from the
+// `products` table (edited via admin.html) takes over automatically.
+const fallbackProducts = [
+  {id:'flipper-zero', name:'Flipper Zero', cat:'rfid', tag:'BESTSELLER', glyph:'▤',
+   desc:'Portable multi-tool for RFID, sub-GHz, NFC, infrared and GPIO research and CTF work.',
+   specs:[['Radio','Sub-1GHz, 125kHz RFID, NFC'],['Display','1.4" monochrome'],['Battery','2000mAh']],
+   price:16999},
+  {id:'arduino-uno', name:'Arduino Uno R3', cat:'embedded', tag:'', glyph:'▦',
+   desc:'The reference microcontroller board for building custom sensors, rigs, and PoC hardware.',
+   specs:[['MCU','ATmega328P'],['I/O','14 digital, 6 analog'],['Interface','USB-B']],
+   price:1899},
+  {id:'hackrf-one', name:'HackRF One', cat:'rf', tag:'RESTOCKED', glyph:'▧',
+   desc:'Open-source SDR platform for transmitting and receiving 1MHz–6GHz signals in the lab.',
+   specs:[['Range','1 MHz – 6 GHz'],['Sample rate','20 Msps'],['Bus','USB 2.0']],
+   price:29999},
+  {id:'rpi-4', name:'Raspberry Pi 4 (8GB)', cat:'embedded', tag:'', glyph:'▥',
+   desc:'Single-board computer used as the brains for portable pentest rigs and packet-capture nodes.',
+   specs:[['CPU','Quad-core 1.5GHz'],['RAM','8GB'],['Ports','GbE, USB 3.0 x2']],
+   price:8499},
+  {id:'rubber-ducky', name:'USB Rubber Ducky', cat:'network', tag:'', glyph:'▨',
+   desc:'Keystroke-injection platform used to demonstrate HID-based attack surfaces in authorized tests.',
+   specs:[['Payload lang','DuckyScript 3.0'],['Storage','microSD, up to 128GB'],['Form','USB-A']],
+   price:6499},
+  {id:'wifi-pineapple', name:'WiFi Pineapple Mark VII', cat:'rf', tag:'', glyph:'▩',
+   desc:'Rogue-AP and wireless auditing platform for authorized Wi-Fi security assessments.',
+   specs:[['Radios','Dual-band 2.4/5GHz'],['CPU','MT7621 580MHz'],['Interface','Web dashboard']],
+   price:24999},
+  {id:'proxmark3', name:'Proxmark3 RDV4', cat:'rfid', tag:'', glyph:'◈',
+   desc:'The reference tool for RFID/NFC card research — reading, cloning-for-testing, and protocol analysis.',
+   specs:[['Freqs','125kHz & 13.56MHz'],['Storage','256KB flash + BT add-on'],['Battery','Optional onboard']],
+   price:32999},
+  {id:'ubertooth', name:'Ubertooth One', cat:'rf', tag:'', glyph:'◫',
+   desc:'Open-source Bluetooth monitoring platform for classic BT and BLE protocol research.',
+   specs:[['Protocol','Bluetooth 2.4GHz'],['Chipset','LPC175x ARM'],['Output','USB streaming']],
+   price:14999},
+  {id:'lan-turtle', name:'LAN Turtle', cat:'network', tag:'', glyph:'▣',
+   desc:'Covert Ethernet access tool for authorized network reconnaissance and remote-access testing.',
+   specs:[['Form','Disguised USB-Ethernet'],['OS','OpenWrt-based'],['Access','SSH-managed']],
+   price:9999},
+  {id:'omg-cable', name:'O.MG Cable Elite V2', cat:'network', tag:'NEW', glyph:'▮',
+   desc:'Lightning/USB-C cable implant for demonstrating physical-access and HID attack scenarios.',
+   specs:[['Trigger','Wireless / geofence'],['Payload','Keystroke injection'],['Look','Stock cable form']],
+   price:11999},
 ];
 
-let PRODUCTS = [];
+const grid = document.getElementById('productGrid');
 let cart = {};
-let appliedCoupon = null; // { code, discount_type, discount_value, id }
+let products = fallbackProducts;
 
-function money(n){ return "₹" + Number(n).toLocaleString("en-IN"); }
-function escapeAttr(s){ return String(s).replace(/"/g, "&quot;"); }
-function toggleNav(force){
-  const drawer = document.getElementById("navDrawer");
-  const overlay = document.getElementById("navOverlay");
-  const btn = document.getElementById("navToggle");
-  const open = force !== undefined ? force : !drawer.classList.contains("open");
-  drawer.classList.toggle("open", open);
-  overlay.classList.toggle("open", open);
-  btn.setAttribute("aria-expanded", open ? "true" : "false");
-  document.body.style.overflow = open ? "hidden" : "";
-}
-document.getElementById("navDrawerBody").addEventListener("click", (e) => { if (e.target.tagName === "A") toggleNav(false); });
-function chipSvg(){
-  return `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="12" y="12" width="24" height="24" rx="2" stroke="currentColor" stroke-width="2"/>
-    <path d="M16 12V6M24 12V6M32 12V6M16 42V36M24 42V36M32 42V36M12 16H6M12 24H6M12 32H6M42 16H36M42 24H36M42 32H36" stroke="currentColor" stroke-width="2"/>
-  </svg>`;
+function money(n){ return '₹' + n.toLocaleString('en-IN'); }
+
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
+// ---------- load live catalog from Supabase (falls back to the static list above) ----------
 async function loadProducts(){
-  const grid = document.getElementById("productGrid");
-  const note = document.getElementById("catalogNote");
-  if (typeof supabaseReady !== "undefined" && supabaseReady) {
-    const { data, error } = await supabase.from("products").select("*").order("id");
-    if (!error && data && data.length) {
-      PRODUCTS = data;
-      note.textContent = data.length + " items in stock";
-    } else {
-      PRODUCTS = FALLBACK_PRODUCTS;
-      note.textContent = "Showing sample catalog — add products from the admin panel.";
-    }
-  } else {
-    PRODUCTS = FALLBACK_PRODUCTS;
-    note.textContent = "Showing sample catalog — connect Supabase to manage live stock.";
+  try {
+    if (!window.supabase || SUPABASE_URL.includes('YOUR-PROJECT')) return; // not configured yet
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await client
+      .from('products')
+      .select('*')
+      .eq('active', true)
+      .order('created_at');
+    if (error || !data || !data.length) return; // keep fallback catalog
+    products = data.map(p => ({
+      id: p.id, name: p.name, cat: p.category, tag: p.tag || '',
+      glyph: p.glyph || '◆', desc: p.description || '',
+      specs: p.specs || [], price: p.price, image_url: p.image_url || ''
+    }));
+  } catch(e) {
+    console.error('Could not load live catalog, showing built-in list instead:', e);
+  } finally {
+    renderProducts(document.querySelector('.filter-btn.active')?.dataset.f || 'all');
   }
-  grid.innerHTML = PRODUCTS.map(p => {
-    const hasDiscount = p.compare_price && p.compare_price > p.price;
-    const pctOff = hasDiscount ? Math.round((1 - p.price / p.compare_price) * 100) : 0;
-    const thumb = p.image_url
-      ? `<img src="${escapeAttr(p.image_url)}" alt="${escapeAttr(p.name)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{innerHTML:chipSvg()}).firstChild)">`
-      : chipSvg();
-    return `
-    <div class="card">
-      <div class="card-thumb"><span class="card-tag">${p.tag || "Module"}</span>${thumb}</div>
+}
+
+function renderProducts(filter='all'){
+  grid.innerHTML = '';
+  products.filter(p => filter==='all' || p.cat===filter).forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-top">
+        <span class="sku">SKU/${p.id.toUpperCase()}</span>
+        ${p.tag ? `<span class="tag${p.tag==='NEW'?' new':''}">${p.tag}</span>` : '<span></span>'}
+      </div>
+      <div class="glyph">${p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}">` : p.glyph}</div>
       <h3>${p.name}</h3>
-      <p class="desc">${p.description || ""}</p>
+      <div class="desc">${p.desc}</div>
+      <div class="spec-list">
+        ${p.specs.map(s => `<div><span>${s[0]}</span><b>${s[1]}</b></div>`).join('')}
+      </div>
       <div class="card-foot">
-        <span>${hasDiscount ? `<span class="compare-price">${money(p.compare_price)}</span>` : ''}<span class="price">${money(p.price)}</span>${hasDiscount ? `<span class="discount-badge">${pctOff}% off</span>` : ''}</span>
-        <button class="add-btn" ${p.stock <= 0 ? 'disabled' : ''} onclick="addToCart(${p.id})">${p.stock <= 0 ? 'Sold out' : 'Add'}</button>
+        <div class="price">${money(p.price)}<br><small>incl. taxes</small></div>
+        <button class="add-btn" data-id="${p.id}">Add</button>
       </div>
-      <span class="stock ${p.stock < 15 ? 'low' : ''}">${p.stock > 0 ? p.stock + ' in stock' : 'Out of stock'}</span>
-    </div>
-  `; }).join("");
-}
-function findProduct(id){ return PRODUCTS.find(p => p.id === id); }
+    `;
+    grid.appendChild(card);
+  });
 
-function addToCart(id){ cart[id] = (cart[id] || 0) + 1; renderCart(); toggleCart(true); }
-function changeQty(id, delta){ cart[id] = (cart[id] || 0) + delta; if (cart[id] <= 0) delete cart[id]; renderCart(); }
-function removeFromCart(id){ delete cart[id]; renderCart(); }
-function cartEntries(){ return Object.entries(cart).map(([id, qty]) => ({ product: findProduct(Number(id)), qty })).filter(e => e.product); }
-function cartTotal(){ return cartEntries().reduce((sum, e) => sum + e.product.price * e.qty, 0); }
-function discountAmount(){
-  if (!appliedCoupon) return 0;
-  const sub = cartTotal();
-  let d = appliedCoupon.discount_type === 'percent' ? sub * (appliedCoupon.discount_value / 100) : appliedCoupon.discount_value;
-  return Math.min(d, sub);
-}
-function finalTotal(){ return Math.max(0, cartTotal() - discountAmount()); }
-
-/* ---------- Location autofill ---------- */
-function useMyLocation(){
-  const statusEl = document.getElementById("locateStatus");
-  const btn = document.getElementById("locateBtn");
-  if (!navigator.geolocation){
-    statusEl.className = "status-msg err";
-    statusEl.textContent = "Your browser doesn't support location access.";
-    return;
-  }
-  btn.disabled = true;
-  btn.textContent = "Locating…";
-  statusEl.className = "status-msg";
-  statusEl.textContent = "";
-
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    const { latitude, longitude } = pos.coords;
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`, {
-        headers: { "Accept-Language": "en" }
-      });
-      const data = await res.json();
-      if (data && data.display_name){
-        document.getElementById("cf-address").value = data.display_name;
-        const pin = data.address && (data.address.postcode || "");
-        if (pin) document.getElementById("cf-pin").value = pin;
-        statusEl.className = "status-msg ok";
-        statusEl.textContent = "Address filled from your current location — please check it's correct.";
-      } else {
-        statusEl.className = "status-msg err";
-        statusEl.textContent = "Couldn't resolve an address for this location. Please type it in.";
-      }
-    } catch (e){
-      statusEl.className = "status-msg err";
-      statusEl.textContent = "Couldn't look up the address right now. Please type it in.";
-    }
-    btn.disabled = false;
-    btn.textContent = "📍 Use my current location";
-  }, (err) => {
-    statusEl.className = "status-msg err";
-    statusEl.textContent = err.code === 1
-      ? "Location access was denied — you can still type your address manually."
-      : "Couldn't get your location. Please type your address manually.";
-    btn.disabled = false;
-    btn.textContent = "📍 Use my current location";
-  }, { enableHighAccuracy: true, timeout: 10000 });
+  grid.querySelectorAll('.add-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      addToCart(btn.dataset.id);
+      btn.textContent = 'Added ✓';
+      btn.classList.add('added');
+      setTimeout(() => { btn.textContent = 'Add'; btn.classList.remove('added'); }, 900);
+    });
+  });
 }
 
-async function applyCoupon(){
-  const input = document.getElementById("cf-coupon");
-  const statusEl = document.getElementById("couponStatus");
-  const code = input.value.trim().toUpperCase();
-  if (!code) return;
-  if (typeof supabaseReady === "undefined" || !supabaseReady){
-    statusEl.className = "status-msg err"; statusEl.textContent = "Supabase isn't connected.";
-    return;
-  }
-  const { data, error } = await supabase.from("coupons").select("*").eq("code", code).eq("active", true).maybeSingle();
-  if (error || !data){
-    appliedCoupon = null;
-    statusEl.className = "status-msg err"; statusEl.textContent = "That code isn't valid.";
-    renderCheckoutSummary();
-    return;
-  }
-  if (data.expires_at && new Date(data.expires_at) < new Date()){
-    appliedCoupon = null;
-    statusEl.className = "status-msg err"; statusEl.textContent = "This code has expired.";
-    renderCheckoutSummary();
-    return;
-  }
-  if (data.usage_limit !== null && data.used_count >= data.usage_limit){
-    appliedCoupon = null;
-    statusEl.className = "status-msg err"; statusEl.textContent = "This code has reached its usage limit.";
-    renderCheckoutSummary();
-    return;
-  }
-  appliedCoupon = data;
-  statusEl.className = "status-msg ok";
-  statusEl.textContent = data.discount_type === 'percent' ? `Applied — ${data.discount_value}% off.` : `Applied — ₹${data.discount_value} off.`;
-  renderCheckoutSummary();
+function addToCart(id){
+  cart[id] = (cart[id] || 0) + 1;
+  updateCartUI();
 }
-
-function renderCart(){
-  const entries = cartEntries();
-  const body = document.getElementById("drawerBody");
-  const foot = document.getElementById("drawerFoot");
-  document.getElementById("cartCount").textContent = entries.reduce((s,e)=>s+e.qty,0);
-  if (!entries.length){ body.innerHTML = `<div class="empty-cart">Your cart is empty.</div>`; foot.style.display = "none"; return; }
-  foot.style.display = "block";
-  body.innerHTML = entries.map(e => `
-    <div class="cart-item">
-      <div class="cart-item-thumb">${chipSvg()}</div>
-      <div class="cart-item-info">
-        <h4>${e.product.name}</h4>
-        <span class="price data">${money(e.product.price)}</span>
-        <div class="qty-row">
-          <button class="qty-btn" onclick="changeQty(${e.product.id}, -1)">−</button>
-          <span class="qty data">${e.qty}</span>
-          <button class="qty-btn" onclick="changeQty(${e.product.id}, 1)">+</button>
-          <button class="remove-link" onclick="removeFromCart(${e.product.id})">Remove</button>
-        </div>
-      </div>
-    </div>
-  `).join("");
-  document.getElementById("cartSubtotal").textContent = money(cartTotal());
+function removeFromCart(id){
+  delete cart[id];
+  updateCartUI();
 }
-function toggleCart(open){ document.getElementById("drawer").classList.toggle("open", open); document.getElementById("overlay").classList.toggle("open", open); }
-
-function route(view){
-  document.getElementById("store").style.display = view === "store" ? "block" : "none";
-  document.getElementById("checkout").classList.toggle("active", view === "checkout");
-  if (view === "checkout") renderCheckoutSummary();
-  window.scrollTo({top:0, behavior:"instant"});
-}
-function goToCheckout(){ if (!cartEntries().length) return; toggleCart(false); route("checkout"); }
-function renderCheckoutSummary(){
-  const entries = cartEntries();
-  document.getElementById("summaryLines").innerHTML = entries.map(e => `<div class="summary-line"><span>${e.product.name} × ${e.qty}</span><span>${money(e.product.price * e.qty)}</span></div>`).join("");
-  const disc = discountAmount();
-  const discLine = document.getElementById("discountLine");
-  if (disc > 0){
-    discLine.style.display = "flex";
-    document.getElementById("discountAmount").textContent = "−" + money(disc);
+function updateCartUI(){
+  const items = Object.entries(cart);
+  document.getElementById('cartCount').textContent = items.reduce((a,[,q])=>a+q,0);
+  const container = document.getElementById('drawerItems');
+  if(items.length === 0){
+    container.innerHTML = '<div class="empty-cart">Cart is empty.<br>Add hardware from the catalog.</div>';
   } else {
-    discLine.style.display = "none";
+    container.innerHTML = items.map(([id, qty]) => {
+      const p = products.find(x => x.id === id);
+      return `<div class="drawer-item">
+        <div>
+          <div class="name">${p.name}</div>
+          <div class="qty">Qty ${qty} · ${money(p.price)}</div>
+          <button class="rm" onclick="removeFromCart('${id}')">Remove</button>
+        </div>
+        <div>${money(p.price*qty)}</div>
+      </div>`;
+    }).join('');
   }
-  document.getElementById("summaryTotal").textContent = money(finalTotal());
+  const total = items.reduce((sum,[id,qty]) => sum + products.find(p=>p.id===id).price*qty, 0);
+  document.getElementById('cartTotal').textContent = money(total);
 }
 
-const ORDER_COOLDOWN_MS = 20000; // client-side soft cooldown between order submissions
-function friendlyErrorMessage(rawMessage){
-  if (rawMessage && rawMessage.indexOf("rate_limit_exceeded") !== -1){
-    return "You've submitted a few of these recently — please wait a bit before trying again.";
-  }
-  return null;
+function toggleCart(open){
+  document.getElementById('drawer').classList.toggle('open', open);
+  document.getElementById('overlay').classList.toggle('open', open);
 }
-document.getElementById("checkoutForm").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const statusEl = document.getElementById("checkoutStatus");
-  const submitBtn = document.getElementById("checkoutSubmitBtn");
-  const entries = cartEntries();
-  if (!entries.length) return;
 
-  // Honeypot: real visitors never fill this hidden field — bots that
-  // auto-fill every input on the page do. Pretend success, do nothing.
-  if (document.getElementById("cf-hp").value.trim() !== ""){
-    statusEl.className = "status-msg ok";
-    statusEl.textContent = "Order placed — reserved as pending payment. We'll follow up to confirm payment before shipping.";
-    document.getElementById("checkoutForm").reset();
-    return;
-  }
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderProducts(btn.dataset.f);
+  });
+});
 
-  // Soft client-side cooldown so a double-click or refresh spam can't
-  // fire duplicate orders while we wait on the network. The real,
-  // unbypassable limit lives in the database trigger (see below).
-  const lastSubmit = Number(localStorage.getItem("cb_last_order_ts") || 0);
-  const now = Date.now();
-  if (now - lastSubmit < ORDER_COOLDOWN_MS){
-    statusEl.className = "status-msg err";
-    statusEl.textContent = "Please wait a few seconds before placing another order.";
-    return;
-  }
+renderProducts();       // paint immediately with the fallback catalog, no flash of empty page
+loadProducts();         // then swap in the live catalog from Supabase, if configured
+updateCartUI();
 
-  const order = {
-    buyer_name: document.getElementById("cf-name").value.trim(),
-    buyer_email: document.getElementById("cf-email").value.trim(),
-    buyer_phone: document.getElementById("cf-phone").value.trim(),
-    pincode: document.getElementById("cf-pin").value.trim(),
-    address: document.getElementById("cf-address").value.trim(),
-    items: entries.map(e => ({ id: e.product.id, name: e.product.name, price: e.product.price, qty: e.qty })),
-    total: finalTotal(),
-    coupon_code: appliedCoupon ? appliedCoupon.code : null,
-    discount: discountAmount(),
-    status: "pending_payment"
-  };
-  if (typeof supabaseReady === "undefined" || !supabaseReady){
-    statusEl.className = "status-msg err";
-    statusEl.textContent = "Supabase isn't connected — check supabase-config.js.";
-    return;
-  }
-
-  submitBtn.disabled = true;
-  localStorage.setItem("cb_last_order_ts", String(now));
-
-  const { error: orderErr } = await supabase.from("orders").insert(order);
-  if (orderErr){
-    statusEl.className = "status-msg err";
-    statusEl.textContent = friendlyErrorMessage(orderErr.message) || ("Couldn't place the order: " + orderErr.message);
-    submitBtn.disabled = false;
-    return;
-  }
-
-  const { data: existing } = await supabase.from("buyers").select("*").eq("email", order.buyer_email).maybeSingle();
-  if (existing){
-    if (existing.status === "blocked"){
-      statusEl.className = "status-msg err";
-      statusEl.textContent = "This account can't place orders right now. Contact support.";
-      submitBtn.disabled = false;
+/* ---------- boot sequence ---------- */
+const bootLines = [
+  '> booting darknet terminal...',
+  '> verifying operator credentials...     [ OK ]',
+  '> mounting hardware catalog...          [ OK ]',
+  '> loading acceptable-use policy...      [ OK ]',
+  '> checking bench signal, ch.7...        [ LOCKED ]',
+  '> access granted.',
+  '',
+  '> welcome back.'
+];
+(function boot(){
+  const el = document.getElementById('bootLines');
+  const bootEl = document.getElementById('boot');
+  let text = '';
+  let li = 0, ci = 0;
+  function typeLine(){
+    if(li >= bootLines.length){
+      el.innerHTML = text + '<span class="cursor-blink"></span>';
+      setTimeout(() => bootEl.classList.add('hidden'), 550);
       return;
     }
-    await supabase.from("buyers").update({ order_count: (existing.order_count || 0) + 1, name: order.buyer_name, phone: order.buyer_phone }).eq("id", existing.id);
-  } else {
-    await supabase.from("buyers").insert({ email: order.buyer_email, name: order.buyer_name, phone: order.buyer_phone, order_count: 1, status: "active" });
+    const line = bootLines[li];
+    if(ci <= line.length){
+      el.innerHTML = text + line.slice(0, ci) + '<span class="cursor-blink"></span>';
+      ci++;
+      setTimeout(typeLine, line === '' ? 40 : 8 + Math.random()*14);
+    } else {
+      text += line + '\n';
+      li++; ci = 0;
+      setTimeout(typeLine, 90);
+    }
   }
-  if (appliedCoupon){
-    await supabase.from("coupons").update({ used_count: (appliedCoupon.used_count || 0) + 1 }).eq("id", appliedCoupon.id);
+  typeLine();
+})();
+
+/* ---------- matrix rain ---------- */
+(function matrixRain(){
+  const canvas = document.getElementById('matrixRain');
+  const ctx = canvas.getContext('2d');
+  let w, h, cols, drops;
+  const chars = '01アイウエオカキクケコサシスセソタチツテト$#%&{}<>/\\';
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    cols = Math.floor(w / 16);
+    drops = new Array(cols).fill(0).map(() => Math.random() * -50);
   }
-
-  statusEl.className = "status-msg ok";
-  statusEl.textContent = "Order placed — reserved as pending payment. We'll follow up to confirm payment before shipping.";
-  cart = {};
-  appliedCoupon = null;
-  renderCart();
-  document.getElementById("checkoutForm").reset();
-  submitBtn.disabled = false;
-});
-
-loadProducts();
-renderCart();
-window.addEventListener("hashchange", () => { if (location.hash === "#/" || location.hash === "") route("store"); });
-
-/* ---------- Info modal (Shipping/Contact/About/Terms/Privacy) ---------- */
-let currentInfoKey = null;
-function openInfo(key){
-  const content = document.getElementById("info-" + key);
-  if (!content) return;
-  if (currentInfoKey) closeInfo(true);
-  document.getElementById("modalTitle").textContent = content.dataset.title || "Info";
-  document.getElementById("modalBody").appendChild(content);
-  document.getElementById("modalOverlay").classList.add("open");
-  document.getElementById("modalPanel").classList.add("open");
-  document.body.style.overflow = "hidden";
-  currentInfoKey = key;
-}
-function closeInfo(skipStore){
-  document.getElementById("modalOverlay").classList.remove("open");
-  document.getElementById("modalPanel").classList.remove("open");
-  if (!skipStore) document.body.style.overflow = "";
-  if (currentInfoKey){
-    const content = document.getElementById("info-" + currentInfoKey);
-    if (content) document.getElementById("infoStore").appendChild(content);
-    currentInfoKey = null;
+  window.addEventListener('resize', resize);
+  resize();
+  function draw(){
+    ctx.fillStyle = 'rgba(5,8,5,0.10)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#00ff66';
+    ctx.font = '14px IBM Plex Mono, monospace';
+    for(let i = 0; i < cols; i++){
+      const char = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(char, i * 16, drops[i] * 16);
+      if(drops[i] * 16 > h && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+    requestAnimationFrame(draw);
   }
-}
-
-const MESSAGE_COOLDOWN_MS = 20000; // client-side soft cooldown between contact submissions
-document.getElementById("contactForm").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const statusEl = document.getElementById("contactStatus");
-  const submitBtn = document.getElementById("contactSubmitBtn");
-
-  // Honeypot: bots fill every field, real visitors never see this one.
-  if (document.getElementById("ct-hp").value.trim() !== ""){
-    statusEl.className = "status-msg ok";
-    statusEl.textContent = "Message sent — we'll get back to you soon.";
-    document.getElementById("contactForm").reset();
-    return;
+  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    draw();
   }
+})();
 
-  const payload = {
-    name: document.getElementById("ct-name").value.trim(),
-    email: document.getElementById("ct-email").value.trim(),
-    message: document.getElementById("ct-message").value.trim()
-  };
-  if (!payload.name || !payload.email || !payload.message) return;
-
-  const lastSubmit = Number(localStorage.getItem("cb_last_msg_ts") || 0);
-  const now = Date.now();
-  if (now - lastSubmit < MESSAGE_COOLDOWN_MS){
-    statusEl.className = "status-msg err";
-    statusEl.textContent = "Please wait a few seconds before sending another message.";
-    return;
-  }
-
-  if (typeof supabaseReady === "undefined" || !supabaseReady){
-    statusEl.className = "status-msg err";
-    statusEl.textContent = "Message form isn't connected right now — email us directly at sunny22101082@gmail.com.";
-    return;
-  }
-
-  submitBtn.disabled = true;
-  localStorage.setItem("cb_last_msg_ts", String(now));
-
-  const { error } = await supabase.from("messages").insert(payload);
-  if (error){
-    statusEl.className = "status-msg err";
-    statusEl.textContent = friendlyErrorMessage(error.message) || ("Couldn't send that — please email sunny22101082@gmail.com directly.");
-    submitBtn.disabled = false;
-    return;
-  }
-  statusEl.className = "status-msg ok";
-  statusEl.textContent = "Message sent — we'll get back to you soon.";
-  document.getElementById("contactForm").reset();
-  submitBtn.disabled = false;
-});
+/* ---------- periodic glitch on hero title ---------- */
+(function glitchLoop(){
+  const t = document.getElementById('glitchTitle');
+  if(!t) return;
+  setInterval(() => {
+    t.classList.add('active');
+    setTimeout(() => t.classList.remove('active'), 260);
+  }, 3400);
+})();
 </script>
+
 </body>
 </html>
