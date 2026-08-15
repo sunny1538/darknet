@@ -239,6 +239,13 @@
   .spec-list b{color:var(--amber-dim); font-weight:500;}
   .card-foot{display:flex; align-items:center; justify-content:space-between; margin-top:auto; padding-top:6px;}
   .price{font-size:20px; color:var(--amber); font-weight:600;}
+  .price-strike{color:var(--paper-dim); font-weight:400; font-size:13px; text-decoration:line-through; margin-right:6px;}
+  .price-off{color:var(--red); font-size:11px; font-weight:700; border:1px solid var(--red); padding:1px 5px; vertical-align:2px;}
+  .stock-note{font-size:11px; text-transform:uppercase; letter-spacing:0.05em; margin-top:6px;}
+  .stock-note.low{color:#e6c34d;}
+  .stock-note.out{color:var(--red);}
+  .add-btn[disabled]{opacity:0.4; cursor:not-allowed;}
+  .add-btn[disabled]:hover{background:transparent; color:var(--amber);}
   .price small{font-size:10px; color:var(--paper-dim); font-weight:400;}
   .add-btn{
     border:1px solid var(--amber); color:var(--amber); background:transparent; font-family:inherit;
@@ -309,6 +316,24 @@
     padding:12px 0; border-top:1px dashed var(--line); border-bottom:1px dashed var(--line); margin:4px 0;
   }
   .checkout-summary b{color:var(--amber); font-size:18px;}
+  .checkout-summary.breakdown{flex-direction:column; align-items:stretch; gap:6px;}
+  .checkout-summary.breakdown .row{display:flex; justify-content:space-between; font-size:13px; color:var(--paper-dim);}
+  .checkout-summary.breakdown .row b{font-size:14px; color:var(--paper);}
+  .checkout-summary.breakdown .discount-row b{color:var(--amber);}
+  .checkout-summary.breakdown .total-row{padding-top:6px; border-top:1px dashed var(--line);}
+  .checkout-summary.breakdown .total-row span{color:var(--paper); font-size:14px; text-transform:uppercase; letter-spacing:0.05em;}
+  .checkout-summary.breakdown .total-row b{color:var(--amber); font-size:18px;}
+  .coupon-row{display:flex; gap:8px;}
+  .coupon-row input{flex:1;}
+  .coupon-row button{
+    background:transparent; border:1px solid var(--amber-dim); color:var(--amber); padding:0 16px;
+    font-size:11px; text-transform:uppercase; letter-spacing:0.06em; cursor:pointer; font-family:inherit;
+  }
+  .coupon-row button:hover{background:var(--amber); color:#0b0d0a;}
+  .coupon-row button:disabled{opacity:0.5; cursor:not-allowed;}
+  .coupon-msg{font-size:11.5px; text-transform:none; letter-spacing:normal; min-height:14px;}
+  .coupon-msg.ok{color:var(--amber);}
+  .coupon-msg.err{color:var(--red);}
   .checkout-error{
     color:var(--red); font-size:12px; border:1px solid var(--red); background:rgba(255,90,60,0.08);
     padding:9px 12px;
@@ -618,9 +643,17 @@
         <label>Shipping address
           <textarea name="shipping_address" rows="3" required autocomplete="street-address"></textarea>
         </label>
-        <div class="checkout-summary">
-          <span>Order total</span>
-          <b id="checkoutTotal">₹0</b>
+        <label>Coupon code (optional)
+          <div class="coupon-row">
+            <input type="text" id="couponInput" name="coupon_code" placeholder="e.g. WELCOME10" autocomplete="off">
+            <button type="button" id="applyCouponBtn">Apply</button>
+          </div>
+          <div id="couponMsg" class="coupon-msg"></div>
+        </label>
+        <div class="checkout-summary breakdown">
+          <div class="row"><span>Subtotal</span><b id="checkoutSubtotal">₹0</b></div>
+          <div class="row discount-row" id="checkoutDiscountRow" style="display:none;"><span>Coupon discount</span><b id="checkoutDiscount">−₹0</b></div>
+          <div class="row total-row"><span>Order total</span><b id="checkoutTotal">₹0</b></div>
         </div>
         <div id="checkoutError" class="checkout-error" style="display:none;"></div>
         <button type="submit" class="checkout-btn" id="checkoutPayBtn">Pay with Razorpay</button>
@@ -637,44 +670,47 @@ const fallbackProducts = [
   {id:'flipper-zero', name:'Flipper Zero', cat:'rfid', tag:'BESTSELLER', glyph:'▤',
    desc:'Portable multi-tool for RFID, sub-GHz, NFC, infrared and GPIO research and CTF work.',
    specs:[['Radio','Sub-1GHz, 125kHz RFID, NFC'],['Display','1.4" monochrome'],['Battery','2000mAh']],
-   price:16999},
+   price:16999, stock:20, low_stock_threshold:5, discount_percent:10},
   {id:'arduino-uno', name:'Arduino Uno R3', cat:'embedded', tag:'', glyph:'▦',
    desc:'The reference microcontroller board for building custom sensors, rigs, and PoC hardware.',
    specs:[['MCU','ATmega328P'],['I/O','14 digital, 6 analog'],['Interface','USB-B']],
-   price:1899},
+   price:1899, stock:50, low_stock_threshold:10, discount_percent:10},
   {id:'hackrf-one', name:'HackRF One', cat:'rf', tag:'RESTOCKED', glyph:'▧',
    desc:'Open-source SDR platform for transmitting and receiving 1MHz–6GHz signals in the lab.',
    specs:[['Range','1 MHz – 6 GHz'],['Sample rate','20 Msps'],['Bus','USB 2.0']],
-   price:29999},
+   price:29999, stock:12, low_stock_threshold:5, discount_percent:10},
   {id:'rpi-4', name:'Raspberry Pi 4 (8GB)', cat:'embedded', tag:'', glyph:'▥',
    desc:'Single-board computer used as the brains for portable pentest rigs and packet-capture nodes.',
    specs:[['CPU','Quad-core 1.5GHz'],['RAM','8GB'],['Ports','GbE, USB 3.0 x2']],
-   price:8499},
+   price:8499, stock:30, low_stock_threshold:8, discount_percent:10},
   {id:'rubber-ducky', name:'USB Rubber Ducky', cat:'network', tag:'', glyph:'▨',
    desc:'Keystroke-injection platform used to demonstrate HID-based attack surfaces in authorized tests.',
    specs:[['Payload lang','DuckyScript 3.0'],['Storage','microSD, up to 128GB'],['Form','USB-A']],
-   price:6499},
+   price:6499, stock:25, low_stock_threshold:5, discount_percent:10},
   {id:'wifi-pineapple', name:'WiFi Pineapple Mark VII', cat:'rf', tag:'', glyph:'▩',
    desc:'Rogue-AP and wireless auditing platform for authorized Wi-Fi security assessments.',
    specs:[['Radios','Dual-band 2.4/5GHz'],['CPU','MT7621 580MHz'],['Interface','Web dashboard']],
-   price:24999},
+   price:24999, stock:10, low_stock_threshold:4, discount_percent:10},
   {id:'proxmark3', name:'Proxmark3 RDV4', cat:'rfid', tag:'', glyph:'◈',
    desc:'The reference tool for RFID/NFC card research — reading, cloning-for-testing, and protocol analysis.',
    specs:[['Freqs','125kHz & 13.56MHz'],['Storage','256KB flash + BT add-on'],['Battery','Optional onboard']],
-   price:32999},
+   price:32999, stock:8, low_stock_threshold:3, discount_percent:10},
   {id:'ubertooth', name:'Ubertooth One', cat:'rf', tag:'', glyph:'◫',
    desc:'Open-source Bluetooth monitoring platform for classic BT and BLE protocol research.',
    specs:[['Protocol','Bluetooth 2.4GHz'],['Chipset','LPC175x ARM'],['Output','USB streaming']],
-   price:14999},
+   price:14999, stock:10, low_stock_threshold:4, discount_percent:10},
   {id:'lan-turtle', name:'LAN Turtle', cat:'network', tag:'', glyph:'▣',
    desc:'Covert Ethernet access tool for authorized network reconnaissance and remote-access testing.',
    specs:[['Form','Disguised USB-Ethernet'],['OS','OpenWrt-based'],['Access','SSH-managed']],
-   price:9999},
+   price:9999, stock:15, low_stock_threshold:5, discount_percent:10},
   {id:'omg-cable', name:'O.MG Cable Elite V2', cat:'network', tag:'NEW', glyph:'▮',
    desc:'Lightning/USB-C cable implant for demonstrating physical-access and HID attack scenarios.',
    specs:[['Trigger','Wireless / geofence'],['Payload','Keystroke injection'],['Look','Stock cable form']],
-   price:11999},
+   price:11999, stock:18, low_stock_threshold:5, discount_percent:10},
 ];
+// Every product gets a computed discounted price, same formula as the DB's
+// generated column, so fallback data and live data always agree.
+fallbackProducts.forEach(p => { p.discounted_price = Math.round(p.price * (1 - p.discount_percent / 100)); });
 
 const grid = document.getElementById('productGrid');
 let cart = {};
@@ -700,7 +736,10 @@ async function loadProducts(){
     products = data.map(p => ({
       id: p.id, name: p.name, cat: p.category, tag: p.tag || '',
       glyph: p.glyph || '◆', desc: p.description || '',
-      specs: p.specs || [], price: p.price, image_url: p.image_url || ''
+      specs: p.specs || [], price: p.price, image_url: p.image_url || '',
+      discount_percent: p.discount_percent ?? 0,
+      discounted_price: p.discounted_price ?? p.price,
+      stock: p.stock ?? 0, low_stock_threshold: p.low_stock_threshold ?? 5,
     }));
   } catch(e) {
     console.error('Could not load live catalog, showing built-in list instead:', e);
@@ -709,9 +748,31 @@ async function loadProducts(){
   }
 }
 
+function stockNote(p){
+  const stock = p.stock ?? 0;
+  const threshold = p.low_stock_threshold ?? 5;
+  if (stock <= 0) return '<div class="stock-note out">Out of stock</div>';
+  if (stock <= threshold) return `<div class="stock-note low">Only ${stock} left</div>`;
+  return '';
+}
+
+function priceBlock(p){
+  const hasDiscount = p.discount_percent > 0 && p.discounted_price < p.price;
+  if (!hasDiscount){
+    return `<div class="price">${money(p.price)}<br><small>incl. taxes</small></div>`;
+  }
+  return `
+    <div class="price">
+      <span class="price-strike">${money(p.price)}</span>
+      <span class="price-off">-${Math.round(p.discount_percent)}%</span><br>
+      ${money(p.discounted_price)}<br><small>incl. taxes</small>
+    </div>`;
+}
+
 function renderProducts(filter='all'){
   grid.innerHTML = '';
   products.filter(p => filter==='all' || p.cat===filter).forEach(p => {
+    const outOfStock = (p.stock ?? 0) <= 0;
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
@@ -725,15 +786,16 @@ function renderProducts(filter='all'){
       <div class="spec-list">
         ${p.specs.map(s => `<div><span>${s[0]}</span><b>${s[1]}</b></div>`).join('')}
       </div>
+      ${stockNote(p)}
       <div class="card-foot">
-        <div class="price">${money(p.price)}<br><small>incl. taxes</small></div>
-        <button class="add-btn" data-id="${p.id}">Add</button>
+        ${priceBlock(p)}
+        <button class="add-btn" data-id="${p.id}" ${outOfStock ? 'disabled' : ''}>${outOfStock ? 'Sold out' : 'Add'}</button>
       </div>
     `;
     grid.appendChild(card);
   });
 
-  grid.querySelectorAll('.add-btn').forEach(btn => {
+  grid.querySelectorAll('.add-btn:not([disabled])').forEach(btn => {
     btn.addEventListener('click', () => {
       addToCart(btn.dataset.id);
       btn.textContent = 'Added ✓';
@@ -760,17 +822,21 @@ function updateCartUI(){
   } else {
     container.innerHTML = items.map(([id, qty]) => {
       const p = products.find(x => x.id === id);
+      const unit = p.discounted_price ?? p.price;
       return `<div class="drawer-item">
         <div>
           <div class="name">${p.name}</div>
-          <div class="qty">Qty ${qty} · ${money(p.price)}</div>
+          <div class="qty">Qty ${qty} · ${money(unit)}</div>
           <button class="rm" onclick="removeFromCart('${id}')">Remove</button>
         </div>
-        <div>${money(p.price*qty)}</div>
+        <div>${money(unit*qty)}</div>
       </div>`;
     }).join('');
   }
-  const total = items.reduce((sum,[id,qty]) => sum + products.find(p=>p.id===id).price*qty, 0);
+  const total = items.reduce((sum,[id,qty]) => {
+    const p = products.find(x=>x.id===id);
+    return sum + (p.discounted_price ?? p.price) * qty;
+  }, 0);
   document.getElementById('cartTotal').textContent = money(total);
 }
 
@@ -787,18 +853,50 @@ function toggleCart(open){
   const form = document.getElementById('checkoutForm');
   const payBtn = document.getElementById('checkoutPayBtn');
   const errorBox = document.getElementById('checkoutError');
+  const subtotalEl = document.getElementById('checkoutSubtotal');
+  const discountRow = document.getElementById('checkoutDiscountRow');
+  const discountEl = document.getElementById('checkoutDiscount');
   const totalEl = document.getElementById('checkoutTotal');
   const testBanner = document.getElementById('checkoutTestBanner');
+  const couponInput = document.getElementById('couponInput');
+  const applyCouponBtn = document.getElementById('applyCouponBtn');
+  const couponMsg = document.getElementById('couponMsg');
 
   if (!openBtn) return; // markup not present, skip silently
 
   testBanner.style.display = RAZORPAY_TEST_MODE ? 'block' : 'none';
 
-  function cartTotal(){
+  // appliedCoupon holds { code, discount_type, discount_value } once a code
+  // has been validated via the validate_coupon() RPC — or null if none applied.
+  let appliedCoupon = null;
+
+  function cartSubtotal(){
     return Object.entries(cart).reduce((sum,[id,qty]) => {
       const p = products.find(x => x.id === id);
-      return sum + (p ? p.price * qty : 0);
+      return sum + (p ? (p.discounted_price ?? p.price) * qty : 0);
     }, 0);
+  }
+
+  function computeDiscount(subtotal){
+    if (!appliedCoupon) return 0;
+    const raw = appliedCoupon.discount_type === 'percent'
+      ? Math.round(subtotal * appliedCoupon.discount_value / 100)
+      : Math.round(appliedCoupon.discount_value);
+    return Math.min(raw, subtotal);
+  }
+
+  function refreshSummary(){
+    const subtotal = cartSubtotal();
+    const discount = computeDiscount(subtotal);
+    subtotalEl.textContent = money(subtotal);
+    if (discount > 0){
+      discountRow.style.display = 'flex';
+      discountEl.textContent = '−' + money(discount);
+    } else {
+      discountRow.style.display = 'none';
+    }
+    totalEl.textContent = money(Math.max(subtotal - discount, 0));
+    return { subtotal, discount, total: Math.max(subtotal - discount, 0) };
   }
 
   function showError(msg){
@@ -809,6 +907,56 @@ function toggleCart(open){
     errorBox.style.display = 'none';
     errorBox.textContent = '';
   }
+  function setCouponMsg(msg, ok){
+    couponMsg.textContent = msg || '';
+    couponMsg.classList.toggle('ok', !!ok);
+    couponMsg.classList.toggle('err', msg && !ok);
+  }
+
+  async function applyCoupon(){
+    const code = couponInput.value.trim();
+    if (!code){
+      appliedCoupon = null;
+      setCouponMsg('', false);
+      refreshSummary();
+      return;
+    }
+    if (!window.supabase || SUPABASE_URL.includes('YOUR-PROJECT')){
+      setCouponMsg('Store backend is not configured yet.', false);
+      return;
+    }
+    applyCouponBtn.disabled = true;
+    applyCouponBtn.textContent = '…';
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    try {
+      const { data, error } = await client.rpc('validate_coupon', { p_code: code });
+      const result = data && data[0];
+      if (error || !result || !result.valid){
+        appliedCoupon = null;
+        setCouponMsg((result && result.message) || (error && error.message) || 'Invalid coupon.', false);
+      } else {
+        appliedCoupon = {
+          code: code.trim().toUpperCase(),
+          discount_type: result.discount_type,
+          discount_value: result.discount_value,
+        };
+        const label = appliedCoupon.discount_type === 'percent'
+          ? `${appliedCoupon.discount_value}% off applied`
+          : `${money(appliedCoupon.discount_value)} off applied`;
+        setCouponMsg(label, true);
+      }
+    } catch(err){
+      appliedCoupon = null;
+      setCouponMsg('Could not check coupon: ' + (err.message || 'unknown error'), false);
+    } finally {
+      applyCouponBtn.disabled = false;
+      applyCouponBtn.textContent = 'Apply';
+      refreshSummary();
+    }
+  }
+  applyCouponBtn.addEventListener('click', applyCoupon);
+  couponInput.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); applyCoupon(); } });
+  couponInput.addEventListener('input', () => { appliedCoupon = null; setCouponMsg('', false); refreshSummary(); });
 
   function openCheckout(){
     if (Object.keys(cart).length === 0){
@@ -816,7 +964,10 @@ function toggleCart(open){
       return;
     }
     clearError();
-    totalEl.textContent = money(cartTotal());
+    appliedCoupon = null;
+    couponInput.value = '';
+    setCouponMsg('', false);
+    refreshSummary();
     toggleCart(false);
     overlay.classList.add('open');
     document.body.style.overflow = 'hidden';
@@ -855,8 +1006,8 @@ function toggleCart(open){
       customer_phone: fd.get('customer_phone').trim(),
       shipping_address: fd.get('shipping_address').trim(),
     };
-    const total = cartTotal();
-    if (total <= 0){
+    const { subtotal } = refreshSummary();
+    if (subtotal <= 0){
       showError('Your cart is empty.');
       return;
     }
@@ -869,9 +1020,11 @@ function toggleCart(open){
     try {
       // 1) Create the order + line items via the create_order() RPC.
       //    This runs server-side (Postgres function), re-prices everything
-      //    from the products table, and hands back just the new order id —
-      //    the anon key never gets direct read/write access to the orders
-      //    table itself (see schema.sql for the RLS policies).
+      //    from the products table (including any per-product discount),
+      //    re-validates + consumes the coupon atomically, checks stock, and
+      //    hands back just the new order id + totals — the anon key never
+      //    gets direct read/write access to the orders table itself (see
+      //    schema.sql for the RLS policies).
       const items = Object.entries(cart).map(([id, qty]) => ({ product_id: id, quantity: qty }));
       const { data: rpcRows, error: orderErr } = await client.rpc('create_order', {
         p_customer_name: customer.customer_name,
@@ -879,16 +1032,18 @@ function toggleCart(open){
         p_customer_phone: customer.customer_phone,
         p_shipping_address: customer.shipping_address,
         p_items: items,
+        p_coupon_code: appliedCoupon ? appliedCoupon.code : null,
       });
       if (orderErr) throw orderErr;
       const orderRow = rpcRows && rpcRows[0];
       if (!orderRow) throw new Error('Order could not be created.');
 
-      // 2) Open Razorpay Checkout
+      // 2) Open Razorpay Checkout — charge the server-computed total, not
+      //    whatever the browser calculated, in case anything changed.
       payBtn.textContent = 'Opening payment…';
       const rzp = new Razorpay({
         key: RAZORPAY_KEY_ID,
-        amount: total * 100, // paise
+        amount: orderRow.total * 100, // paise
         currency: 'INR',
         name: 'DARKNET',
         description: `Order ${orderRow.order_id.slice(0, 8)}`,
@@ -899,6 +1054,7 @@ function toggleCart(open){
         },
         notes: {
           order_id: orderRow.order_id,
+          coupon_code: orderRow.coupon_code || '',
         },
         theme: { color: '#00ff66' },
         handler: async function (response){
@@ -913,9 +1069,11 @@ function toggleCart(open){
             console.error('Could not update order status:', err);
           }
           cart = {};
+          appliedCoupon = null;
           updateCartUI();
           form.reset();
           closeCheckout();
+          loadProducts(); // refresh stock counts / low-stock badges after purchase
           alert('Payment successful! Order ' + orderRow.order_id.slice(0, 8) + ' is confirmed. A confirmation has been recorded — check your email for updates.');
         },
         modal: {
