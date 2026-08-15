@@ -187,6 +187,7 @@
   <nav class="tabs">
     <button class="tab-btn active" data-tab="products">Products</button>
     <button class="tab-btn" data-tab="orders">Orders</button>
+    <button class="tab-btn" data-tab="coupons">Coupons</button>
   </nav>
 
   <main>
@@ -206,6 +207,16 @@
         <button class="btn ghost small" id="refreshOrdersBtn">Refresh</button>
       </div>
       <div id="ordersTableWrap" class="loading">Loading orders…</div>
+    </section>
+
+    <!-- COUPONS -->
+    <section class="panel" id="panel-coupons">
+      <div class="panel-head">
+        <h2>Coupons</h2>
+        <button class="btn small" id="newCouponBtn">+ New coupon</button>
+      </div>
+      <p class="muted" style="margin-bottom:14px;">Leave "Max uses" blank for an unlimited-use coupon.</p>
+      <div id="couponsTableWrap" class="loading">Loading coupons…</div>
     </section>
   </main>
 </div>
@@ -235,8 +246,21 @@
           </select>
         </div>
         <div class="field">
-          <label>Price (INR)</label>
+          <label>Price / MRP (INR)</label>
           <input type="number" id="p_price" min="0" required>
+        </div>
+        <div class="field">
+          <label>Discount %</label>
+          <input type="number" id="p_discount" min="0" max="100" step="0.5" value="10">
+          <small class="hint" id="p_discount_preview"></small>
+        </div>
+        <div class="field">
+          <label>Stock (units)</label>
+          <input type="number" id="p_stock" min="0" step="1" value="0" required>
+        </div>
+        <div class="field">
+          <label>Low-stock alert at</label>
+          <input type="number" id="p_low_stock" min="0" step="1" value="5" required>
         </div>
         <div class="field">
           <label>Tag (optional)</label>
@@ -269,6 +293,47 @@
       <div class="modal-actions">
         <button type="submit" class="btn" id="saveProductBtn">Save product</button>
         <button type="button" class="btn ghost" id="cancelProductBtn">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ COUPON FORM MODAL ============ -->
+<div class="overlay" id="couponOverlay">
+  <div class="modal" style="max-width:440px;">
+    <h3 id="couponModalTitle">New coupon</h3>
+    <form id="couponForm">
+      <input type="hidden" id="c_original_code">
+      <div class="form-grid">
+        <div class="field full">
+          <label>Code</label>
+          <input type="text" id="c_code" required placeholder="e.g. WELCOME10" style="text-transform:uppercase;">
+        </div>
+        <div class="field">
+          <label>Discount type</label>
+          <select id="c_type">
+            <option value="percent">Percent off</option>
+            <option value="flat">Flat amount off (₹)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Discount value</label>
+          <input type="number" id="c_value" min="0.01" step="0.01" required placeholder="10">
+        </div>
+        <div class="field full">
+          <label>Max uses (blank = unlimited)</label>
+          <input type="number" id="c_max_uses" min="1" step="1" placeholder="Unlimited">
+        </div>
+        <div class="field full">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="c_active" style="width:auto;" checked> Active
+          </label>
+        </div>
+      </div>
+      <div id="couponFormError" class="error-msg"></div>
+      <div class="modal-actions">
+        <button type="submit" class="btn" id="saveCouponBtn">Save coupon</button>
+        <button type="button" class="btn ghost" id="cancelCouponBtn">Cancel</button>
       </div>
     </form>
   </div>
@@ -320,6 +385,7 @@ async function enterDashboard(user){
   document.getElementById('whoAmI').textContent = user?.email || '';
   loadProducts();
   loadOrders();
+  loadCoupons();
 }
 
 // Restore session on reload
@@ -363,14 +429,27 @@ async function loadProducts(){
   }
   wrap.innerHTML = `
     <table>
-      <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Price</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead>
       <tbody>
-        ${productsCache.map(p => `
+        ${productsCache.map(p => {
+          const stock = p.stock ?? 0;
+          const threshold = p.low_stock_threshold ?? 5;
+          const stockPill = stock <= 0
+            ? '<span class="pill" style="border-color:var(--red); color:var(--red);">Out of stock</span>'
+            : stock <= threshold
+              ? `<span class="pill" style="border-color:#c9a227; color:#e6c34d;">${stock} · Low</span>`
+              : `<span>${stock}</span>`;
+          const hasDiscount = p.discount_percent > 0;
+          const priceCell = hasDiscount
+            ? `<span class="muted" style="text-decoration:line-through;">${money(p.price)}</span><br>${money(p.discounted_price)} <span class="muted">(-${p.discount_percent}%)</span>`
+            : money(p.price);
+          return `
           <tr>
             <td data-label="SKU">${escapeHtml(p.id)}</td>
             <td data-label="Name">${escapeHtml(p.name)}</td>
             <td data-label="Category">${escapeHtml(p.category)}</td>
-            <td data-label="Price">${money(p.price)}</td>
+            <td data-label="Price">${priceCell}</td>
+            <td data-label="Stock">${stockPill}</td>
             <td data-label="Status"><span class="pill ${p.active ? '' : 'off'}">${p.active ? 'Active' : 'Hidden'}</span></td>
             <td data-label="Actions">
               <div class="row-actions">
@@ -380,7 +459,7 @@ async function loadProducts(){
               </div>
             </td>
           </tr>
-        `).join('')}
+        `;}).join('')}
       </tbody>
     </table>
   `;
@@ -423,6 +502,20 @@ function addSpecRow(label='', value=''){
 }
 document.getElementById('addSpecRow').addEventListener('click', () => addSpecRow());
 
+function updateDiscountPreview(){
+  const price = Number(document.getElementById('p_price').value) || 0;
+  const pct = Number(document.getElementById('p_discount').value) || 0;
+  const preview = document.getElementById('p_discount_preview');
+  if (price > 0 && pct > 0){
+    const discounted = Math.round(price * (1 - pct / 100));
+    preview.textContent = `Sells at ${money(discounted)} (was ${money(price)})`;
+  } else {
+    preview.textContent = '';
+  }
+}
+document.getElementById('p_price').addEventListener('input', updateDiscountPreview);
+document.getElementById('p_discount').addEventListener('input', updateDiscountPreview);
+
 function openProductForm(id){
   productFormError.style.display = 'none';
   specsRows.innerHTML = '';
@@ -434,6 +527,9 @@ function openProductForm(id){
   document.getElementById('p_name').value = p ? p.name : '';
   document.getElementById('p_category').value = p ? p.category : 'rf';
   document.getElementById('p_price').value = p ? p.price : '';
+  document.getElementById('p_discount').value = p ? (p.discount_percent ?? 10) : 10;
+  document.getElementById('p_stock').value = p ? (p.stock ?? 0) : 0;
+  document.getElementById('p_low_stock').value = p ? (p.low_stock_threshold ?? 5) : 5;
   document.getElementById('p_tag').value = p ? (p.tag || '') : '';
   document.getElementById('p_glyph').value = p ? (p.glyph || '◆') : '◆';
   document.getElementById('p_image_url').value = p ? (p.image_url || '') : '';
@@ -446,6 +542,7 @@ function openProductForm(id){
     addSpecRow(); addSpecRow(); addSpecRow();
   }
   productOverlay.classList.add('open');
+  updateDiscountPreview();
 }
 
 document.getElementById('newProductBtn').addEventListener('click', () => openProductForm(null));
@@ -468,6 +565,9 @@ productForm.addEventListener('submit', async (e) => {
     name: document.getElementById('p_name').value.trim(),
     category: document.getElementById('p_category').value,
     price: Number(document.getElementById('p_price').value),
+    discount_percent: Number(document.getElementById('p_discount').value) || 0,
+    stock: Number(document.getElementById('p_stock').value) || 0,
+    low_stock_threshold: Number(document.getElementById('p_low_stock').value) || 0,
     tag: document.getElementById('p_tag').value.trim(),
     glyph: document.getElementById('p_glyph').value.trim() || '◆',
     image_url: document.getElementById('p_image_url').value.trim(),
@@ -558,6 +658,131 @@ async function loadOrders(){
   });
 }
 document.getElementById('refreshOrdersBtn').addEventListener('click', loadOrders);
+
+/* ---------------- COUPONS ---------------- */
+let couponsCache = [];
+
+async function loadCoupons(){
+  const wrap = document.getElementById('couponsTableWrap');
+  wrap.innerHTML = '<div class="loading">Loading coupons…</div>';
+  const { data, error } = await client.from('coupons').select('*').order('created_at', { ascending: false });
+  if (error){
+    wrap.innerHTML = `<div class="empty-state">Could not load coupons: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  couponsCache = data || [];
+  if (!couponsCache.length){
+    wrap.innerHTML = '<div class="empty-state">No coupons yet — create your first one.</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>Code</th><th>Discount</th><th>Uses</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        ${couponsCache.map(c => {
+          const discountLabel = c.discount_type === 'percent' ? `${c.discount_value}% off` : `${money(c.discount_value)} off`;
+          const usesLabel = c.max_uses === null || c.max_uses === undefined
+            ? `${c.used_count} / Unlimited`
+            : `${c.used_count} / ${c.max_uses}`;
+          const exhausted = c.max_uses !== null && c.max_uses !== undefined && c.used_count >= c.max_uses;
+          return `
+          <tr>
+            <td data-label="Code"><b>${escapeHtml(c.code)}</b></td>
+            <td data-label="Discount">${escapeHtml(discountLabel)}</td>
+            <td data-label="Uses">${usesLabel}${exhausted ? ' <span class="pill" style="border-color:var(--red); color:var(--red);">Exhausted</span>' : ''}</td>
+            <td data-label="Status"><span class="pill ${c.active ? '' : 'off'}">${c.active ? 'Active' : 'Disabled'}</span></td>
+            <td data-label="Actions">
+              <div class="row-actions">
+                <button data-edit-coupon="${escapeHtml(c.code)}">Edit</button>
+                <button data-toggle-coupon="${escapeHtml(c.code)}">${c.active ? 'Disable' : 'Enable'}</button>
+                <button class="danger" data-delete-coupon="${escapeHtml(c.code)}">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `;}).join('')}
+      </tbody>
+    </table>
+  `;
+  wrap.querySelectorAll('[data-edit-coupon]').forEach(b => b.addEventListener('click', () => openCouponForm(b.dataset.editCoupon)));
+  wrap.querySelectorAll('[data-toggle-coupon]').forEach(b => b.addEventListener('click', () => toggleCouponActive(b.dataset.toggleCoupon)));
+  wrap.querySelectorAll('[data-delete-coupon]').forEach(b => b.addEventListener('click', () => deleteCoupon(b.dataset.deleteCoupon)));
+}
+
+async function toggleCouponActive(code){
+  const c = couponsCache.find(x => x.code === code);
+  if (!c) return;
+  const { error } = await client.from('coupons').update({ active: !c.active }).eq('code', code);
+  if (error) return alert('Could not update: ' + error.message);
+  loadCoupons();
+}
+
+async function deleteCoupon(code){
+  if (!confirm(`Delete coupon "${code}"? This can't be undone.`)) return;
+  const { error } = await client.from('coupons').delete().eq('code', code);
+  if (error) return alert('Could not delete: ' + error.message);
+  loadCoupons();
+}
+
+const couponOverlay = document.getElementById('couponOverlay');
+const couponForm = document.getElementById('couponForm');
+const couponFormError = document.getElementById('couponFormError');
+
+function openCouponForm(code){
+  couponFormError.style.display = 'none';
+  const c = code ? couponsCache.find(x => x.code === code) : null;
+  document.getElementById('couponModalTitle').textContent = c ? 'Edit coupon' : 'New coupon';
+  document.getElementById('c_original_code').value = c ? c.code : '';
+  document.getElementById('c_code').value = c ? c.code : '';
+  document.getElementById('c_code').disabled = !!c; // code is the primary key — don't change it on edit
+  document.getElementById('c_type').value = c ? c.discount_type : 'percent';
+  document.getElementById('c_value').value = c ? c.discount_value : '';
+  document.getElementById('c_max_uses').value = (c && c.max_uses !== null && c.max_uses !== undefined) ? c.max_uses : '';
+  document.getElementById('c_active').checked = c ? !!c.active : true;
+  couponOverlay.classList.add('open');
+}
+
+document.getElementById('newCouponBtn').addEventListener('click', () => openCouponForm(null));
+document.getElementById('cancelCouponBtn').addEventListener('click', () => couponOverlay.classList.remove('open'));
+couponOverlay.addEventListener('click', (e) => { if (e.target === couponOverlay) couponOverlay.classList.remove('open'); });
+
+couponForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  couponFormError.style.display = 'none';
+
+  const originalCode = document.getElementById('c_original_code').value;
+  const code = document.getElementById('c_code').value.trim().toUpperCase();
+  const maxUsesRaw = document.getElementById('c_max_uses').value.trim();
+
+  const payload = {
+    code,
+    discount_type: document.getElementById('c_type').value,
+    discount_value: Number(document.getElementById('c_value').value),
+    max_uses: maxUsesRaw === '' ? null : Number(maxUsesRaw),
+    active: document.getElementById('c_active').checked,
+  };
+
+  const saveBtn = document.getElementById('saveCouponBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
+
+  let error;
+  if (originalCode){
+    ({ error } = await client.from('coupons').update(payload).eq('code', originalCode));
+  } else {
+    ({ error } = await client.from('coupons').insert(payload));
+  }
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = 'Save coupon';
+
+  if (error){
+    couponFormError.textContent = error.message;
+    couponFormError.style.display = 'block';
+    return;
+  }
+  couponOverlay.classList.remove('open');
+  loadCoupons();
+});
 </script>
 </body>
 </html>
