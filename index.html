@@ -230,8 +230,1074 @@
       repeating-linear-gradient(45deg, rgba(0,255,102,0.03) 0px, rgba(0,255,102,0.03) 1px, transparent 1px, transparent 10px);
     font-size:44px;
     color:var(--amber-dim); overflow:hidden;
+  }<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DARKNET — Field Hardware for Security Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Big+Shoulders+Display:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<!-- ============ CONFIG ============ -->
+<!-- Fill these in with the SAME Supabase project URL + anon/public key used in admin.html -->
+<!-- Find them at: Supabase Dashboard → Project Settings → API -->
+<script>
+  const SUPABASE_URL = 'https://kvnqdoiwsofewovtjoma.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_Wu1SP-hGRSVgopENn8o5nA_JxPfN9VL';
+
+  // ---- RAZORPAY ----
+  // Currently running in TEST MODE with a placeholder key, so the payment
+  // popup opens and works end-to-end, but no real money moves.
+  // When your real keys arrive from Razorpay:
+  //   1) Replace RAZORPAY_KEY_ID below with your Key ID (Dashboard → Settings → API Keys).
+  //        Test key looks like:  rzp_test_XXXXXXXXXXXXXX
+  //        Live key looks like:  rzp_live_XXXXXXXXXXXXXX
+  //   2) NEVER put your Key Secret in this file — it must never appear in browser code.
+  //   3) Flip RAZORPAY_TEST_MODE to false once you switch to the rzp_live_ key.
+  const RAZORPAY_KEY_ID = 'rzp_test_XXXXXXXXXXXXXX'; // <-- swap in your real Key ID here
+  const RAZORPAY_TEST_MODE = true;
+</script>
+<style>
+  :root{
+    --bg: #050805;
+    --bg-panel: #0c130d;
+    --bg-panel-2: #101a11;
+    --amber: #00ff66;
+    --amber-dim: #0a9b45;
+    --amber-faint: #0e3319;
+    --paper: #d7f5df;
+    --paper-dim: #7fa88c;
+    --line: #1a2e1d;
+    --red: #ff5a3c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:
+      radial-gradient(circle at 15% -10%, rgba(0,255,102,0.06), transparent 40%),
+      var(--bg);
+    color:var(--paper);
+    font-family:'IBM Plex Mono', monospace;
+    -webkit-font-smoothing:antialiased;
+  }
+  .display{font-family:'Big Shoulders Display', sans-serif; font-weight:800; letter-spacing:0.01em;}
+
+  /* scanline / crt texture */
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:200;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,0.12) 0px, rgba(0,0,0,0.12) 1px, transparent 1px, transparent 3px);
+    opacity:0.35; mix-blend-mode:overlay;
+  }
+  /* faint crt flicker */
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:199;
+    background:var(--amber); opacity:0; mix-blend-mode:overlay;
+    animation:flicker 6.5s infinite;
+  }
+  @keyframes flicker{
+    0%,96%,100%{opacity:0;}
+    97%{opacity:0.02;}
+    98%{opacity:0;}
+    98.5%{opacity:0.035;}
+    99%{opacity:0;}
+  }
+
+  #matrixRain{
+    position:fixed; inset:0; z-index:0; opacity:0.16; pointer-events:none;
+  }
+
+  /* ---------- boot sequence ---------- */
+  #boot{
+    position:fixed; inset:0; z-index:999; background:#050603; color:var(--amber);
+    font-family:'IBM Plex Mono', monospace; font-size:13px; line-height:1.9;
+    padding:60px; overflow:hidden; transition:opacity .5s ease, visibility .5s ease;
+  }
+  #boot.hidden{opacity:0; visibility:hidden;}
+  #bootLines{white-space:pre-wrap;}
+  #boot .cursor-blink{display:inline-block; width:8px; height:14px; background:var(--amber); margin-left:2px; animation:blink 1s step-end infinite; vertical-align:middle;}
+  @keyframes blink{50%{opacity:0;}}
+
+  /* ---------- glitch text ---------- */
+  .glitch-wrap{position:relative; display:inline-block;}
+  .glitch-wrap.active::before, .glitch-wrap.active::after{
+    content:attr(data-text); position:absolute; left:0; top:0; width:100%; overflow:hidden;
+  }
+  .glitch-wrap.active::before{
+    color:var(--red); clip-path:inset(0 0 55% 0); transform:translate(-2px,-1px); opacity:0.85;
+    animation:glitchTop 0.35s steps(2) infinite;
+  }
+  .glitch-wrap.active::after{
+    color:#4affe0; clip-path:inset(45% 0 0 0); transform:translate(2px,1px); opacity:0.85;
+    animation:glitchBot 0.35s steps(2) infinite;
+  }
+  @keyframes glitchTop{0%{transform:translate(-2px,-1px);} 50%{transform:translate(2px,-1px);} 100%{transform:translate(-1px,1px);}}
+  @keyframes glitchBot{0%{transform:translate(2px,1px);} 50%{transform:translate(-2px,1px);} 100%{transform:translate(1px,-1px);}}
+
+  /* ---------- HUD corner brackets ---------- */
+  .hud-corner{position:fixed; width:22px; height:22px; border-color:var(--amber-dim); opacity:0.6; z-index:150; pointer-events:none;}
+  .hud-corner.tl{top:14px; left:14px; border-top:1.5px solid; border-left:1.5px solid;}
+  .hud-corner.tr{top:14px; right:14px; border-top:1.5px solid; border-right:1.5px solid;}
+  .hud-corner.bl{bottom:14px; left:14px; border-bottom:1.5px solid; border-left:1.5px solid;}
+  .hud-corner.br{bottom:14px; right:14px; border-bottom:1.5px solid; border-right:1.5px solid;}
+
+  .term-cursor{display:inline-block; width:8px; height:15px; background:var(--amber); margin-left:4px; vertical-align:-2px; animation:blink 1s step-end infinite;}
+
+  .card{overflow:hidden;}
+  .card::before{
+    content:""; position:absolute; inset:0; background:var(--amber); opacity:0; pointer-events:none; mix-blend-mode:overlay;
+    transition:opacity .08s;
+  }
+  .card:hover::before{ animation:cardGlitch 0.5s steps(6) 1; }
+  @keyframes cardGlitch{
+    0%{opacity:0.12;} 15%{opacity:0;} 30%{opacity:0.08;} 45%{opacity:0;} 60%{opacity:0.1;} 100%{opacity:0;}
+  }
+  .card h3{transition:letter-spacing .15s;}
+  .card:hover h3{letter-spacing:0.03em; text-shadow:1px 0 var(--red), -1px 0 #4affe0;}
+
+  a{color:inherit;}
+  ::selection{background:var(--amber); color:#0b0d0a;}
+
+  /* ---------- topbar ---------- */
+  .ticker{
+    background:var(--amber); color:#0b0d0a; font-size:11px; font-weight:600;
+    letter-spacing:0.08em; padding:6px 0; overflow:hidden; white-space:nowrap;
+  }
+  .ticker span{padding:0 28px; display:inline-block;}
+  .ticker-track{display:inline-block; animation:scroll 28s linear infinite;}
+  @keyframes scroll{from{transform:translateX(0);} to{transform:translateX(-50%);}}
+
+  header.site{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 40px; border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:rgba(5,8,5,0.92); backdrop-filter:blur(6px); z-index:100;
+  }
+  .logo{display:flex; align-items:center; gap:10px;}
+  .logo .mark{
+    width:34px; height:34px; border:1.5px solid var(--amber); display:flex; align-items:center; justify-content:center;
+    font-size:15px; color:var(--amber); font-weight:700;
+  }
+  .logo .word{font-size:20px; letter-spacing:0.02em;}
+  .logo .word b{color:var(--amber);}
+  nav.main{display:flex; gap:32px; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; color:var(--paper-dim);}
+  nav.main a{text-decoration:none; transition:color .15s;}
+  nav.main a:hover{color:var(--amber);}
+  .cart-btn{
+    border:1px solid var(--amber-dim); color:var(--amber); padding:9px 16px; font-size:12px;
+    text-transform:uppercase; letter-spacing:0.08em; background:transparent; cursor:pointer; font-family:inherit;
+    display:flex; align-items:center; gap:8px; transition: all .15s;
+  }
+  .cart-btn:hover{background:var(--amber); color:#0b0d0a;}
+  .cart-count{background:var(--amber); color:#0b0d0a; border-radius:50%; width:18px; height:18px; font-size:10px; display:flex; align-items:center; justify-content:center; font-weight:700;}
+  .cart-btn:hover .cart-count{background:#0b0d0a; color:var(--amber);}
+
+  /* ---------- hero ---------- */
+  .hero{
+    padding:90px 40px 70px; border-bottom:1px solid var(--line);
+    display:grid; grid-template-columns:1.3fr 1fr; gap:60px; align-items:end;
+    position:relative; overflow:hidden;
+  }
+  .hero::after{
+    content:""; position:absolute; right:-10%; top:-30%; width:520px; height:520px; border-radius:50%;
+    background:radial-gradient(circle, rgba(0,255,102,0.10), transparent 65%); pointer-events:none;
+  }
+  .eyebrow{
+    font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:var(--amber);
+    display:flex; align-items:center; gap:10px; margin-bottom:22px;
+  }
+  .eyebrow .dot{width:6px; height:6px; background:var(--amber); border-radius:50%; box-shadow:0 0 8px var(--amber); animation:pulse 1.8s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  h1.hero-title{
+    font-size:clamp(44px, 6vw, 84px); line-height:0.94; text-transform:uppercase; color:var(--paper);
+  }
+  h1.hero-title em{font-style:normal; color:var(--amber);}
+  .hero-sub{color:var(--paper-dim); font-size:14px; line-height:1.7; max-width:480px; margin-top:22px;}
+  .hero-meta{
+    border:1px solid var(--line); background:var(--bg-panel); padding:24px; font-size:12px;
+  }
+  .hero-meta .row{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px dashed var(--line); color:var(--paper-dim);}
+  .hero-meta .row:last-child{border-bottom:none;}
+  .hero-meta .row b{color:var(--amber); font-weight:600;}
+
+  /* ---------- notice ---------- */
+  .notice{
+    border-bottom:1px solid var(--line); background:var(--bg-panel-2);
+    padding:16px 40px; font-size:11.5px; color:var(--paper-dim); line-height:1.7; letter-spacing:0.01em;
+  }
+  .notice b{color:var(--amber);}
+
+  /* ---------- catalog ---------- */
+  .catalog{padding:70px 40px 40px;}
+  .catalog-head{display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:34px; flex-wrap:wrap; gap:16px;}
+  .catalog-head h2{font-size:34px; text-transform:uppercase; letter-spacing:0.01em;}
+  .catalog-head p{color:var(--paper-dim); font-size:12px; max-width:360px; line-height:1.6;}
+
+  .filters{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:36px;}
+  .filter-btn{
+    border:1px solid var(--line); background:transparent; color:var(--paper-dim); padding:7px 14px;
+    font-size:11px; letter-spacing:0.06em; text-transform:uppercase; font-family:inherit; cursor:pointer; transition:all .15s;
+  }
+  .filter-btn:hover, .filter-btn.active{border-color:var(--amber); color:var(--amber);}
+
+  .grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:1px;
+    background:var(--line); border:1px solid var(--line);
+  }
+  .card{
+    background:var(--bg); padding:26px 22px 22px; display:flex; flex-direction:column; gap:14px;
+    position:relative; transition:background .2s;
+  }
+  .card:hover{background:var(--bg-panel);}
+  .card-top{display:flex; justify-content:space-between; align-items:flex-start;}
+  .sku{font-size:10px; color:var(--paper-dim); letter-spacing:0.05em;}
+  .tag{
+    font-size:9.5px; text-transform:uppercase; letter-spacing:0.08em; padding:3px 8px; border:1px solid var(--amber-faint); color:var(--amber-dim);
+  }
+  .tag.new{border-color:var(--red); color:var(--red);}
+  .glyph{
+    width:100%; height:110px; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); background:
+      repeating-linear-gradient(45deg, rgba(0,255,102,0.03) 0px, rgba(0,255,102,0.03) 1px, transparent 1px, transparent 10px);
+    font-size:44px;
+    color:var(--amber-dim); overflow:hidden;
   }
   .glyph img{width:100%; height:100%; object-fit:cover;}
+  .card h3{font-size:19px; text-transform:uppercase; letter-spacing:0.01em; color:var(--paper);}
+  .card .desc{font-size:12px; color:var(--paper-dim); line-height:1.6; min-height:52px;}
+  .spec-list{font-size:10.5px; color:var(--paper-dim); display:flex; flex-direction:column; gap:4px; border-top:1px dashed var(--line); padding-top:10px;}
+  .spec-list div{display:flex; justify-content:space-between;}
+  .spec-list b{color:var(--amber-dim); font-weight:500;}
+  .card-foot{display:flex; align-items:center; justify-content:space-between; margin-top:auto; padding-top:6px;}
+  .price{font-size:20px; color:var(--amber); font-weight:600;}
+  .price small{font-size:10px; color:var(--paper-dim); font-weight:400;}
+  .add-btn{
+    border:1px solid var(--amber); color:var(--amber); background:transparent; font-family:inherit;
+    font-size:11px; letter-spacing:0.06em; text-transform:uppercase; padding:9px 14px; cursor:pointer; transition:all .15s;
+  }
+  .add-btn:hover{background:var(--amber); color:#0b0d0a;}
+  .add-btn.added{background:var(--amber); color:#0b0d0a;}
+
+  /* ---------- signature: signal strip ---------- */
+  .signal{
+    margin:70px 40px; border:1px solid var(--line); background:var(--bg-panel); padding:34px 30px; overflow:hidden;
+  }
+  .signal-head{display:flex; justify-content:space-between; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--paper-dim); margin-bottom:18px;}
+  .signal-head b{color:var(--amber);}
+  .wave{width:100%; height:70px;}
+
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--line); padding:40px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:20px; font-size:11px; color:var(--paper-dim);}
+  footer .fcol h4{color:var(--amber); font-size:11px; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;}
+  footer .fcol div{line-height:2;}
+
+  /* ---------- cart drawer ---------- */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:300; opacity:0; pointer-events:none; transition:opacity .2s;}
+  .overlay.open{opacity:1; pointer-events:auto;}
+  .drawer{
+    position:fixed; top:0; right:-420px; width:400px; max-width:90vw; height:100%; background:var(--bg-panel);
+    border-left:1px solid var(--amber-faint); z-index:301; transition:right .25s ease; display:flex; flex-direction:column;
+  }
+  .drawer.open{right:0;}
+  .drawer-head{padding:22px 24px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;}
+  .drawer-head h3{text-transform:uppercase; font-size:16px; letter-spacing:0.05em;}
+  .close-btn{background:none; border:none; color:var(--paper-dim); font-size:20px; cursor:pointer; font-family:inherit;}
+  .drawer-items{flex:1; overflow-y:auto; padding:10px 24px;}
+  .drawer-item{display:flex; justify-content:space-between; gap:10px; padding:16px 0; border-bottom:1px dashed var(--line); font-size:12px;}
+  .drawer-item .name{color:var(--paper);}
+  .drawer-item .qty{color:var(--paper-dim); font-size:11px;}
+  .drawer-item .rm{color:var(--red); cursor:pointer; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; background:none; border:none; font-family:inherit; padding:0; margin-top:4px;}
+  .empty-cart{color:var(--paper-dim); font-size:12px; padding:30px 0; text-align:center; line-height:1.7;}
+  .drawer-foot{padding:22px 24px; border-top:1px solid var(--line);}
+  .drawer-foot .total{display:flex; justify-content:space-between; font-size:15px; margin-bottom:16px;}
+  .drawer-foot .total b{color:var(--amber);}
+  .checkout-btn{
+    width:100%; background:var(--amber); color:#0b0d0a; border:none; padding:14px; font-family:inherit;
+    font-size:12px; letter-spacing:0.08em; text-transform:uppercase; font-weight:700; cursor:pointer;
+  }
+  .checkout-btn:hover{background:#ffc84a;}
+  .checkout-btn:disabled{opacity:0.55; cursor:not-allowed;}
+
+  /* ---------- checkout modal ---------- */
+  .checkout-modal{max-width:460px;}
+  .checkout-test-banner{
+    background:var(--amber-faint); color:var(--amber); border:1px dashed var(--amber-dim);
+    font-size:11px; letter-spacing:0.05em; text-transform:uppercase; text-align:center;
+    padding:9px 12px; margin-bottom:18px;
+  }
+  .checkout-form{display:flex; flex-direction:column; gap:14px;}
+  .checkout-form label{
+    display:flex; flex-direction:column; gap:6px; font-size:11px; letter-spacing:0.05em;
+    text-transform:uppercase; color:var(--paper-dim);
+  }
+  .checkout-form input, .checkout-form textarea{
+    background:var(--bg); border:1px solid var(--line); color:var(--paper); padding:10px 12px;
+    font-family:inherit; font-size:13px; text-transform:none; letter-spacing:normal; resize:vertical;
+  }
+  .checkout-form input:focus, .checkout-form textarea:focus{outline:none; border-color:var(--amber-dim);}
+  .checkout-summary{
+    display:flex; justify-content:space-between; align-items:center; font-size:14px;
+    padding:12px 0; border-top:1px dashed var(--line); border-bottom:1px dashed var(--line); margin:4px 0;
+  }
+  .checkout-summary b{color:var(--amber); font-size:18px;}
+  .checkout-error{
+    color:var(--red); font-size:12px; border:1px solid var(--red); background:rgba(255,90,60,0.08);
+    padding:9px 12px;
+  }
+
+  /* ---------- policy modal ---------- */
+  .policy-overlay{
+    position:fixed; inset:0; background:rgba(2,4,2,0.78); backdrop-filter:blur(3px);
+    z-index:500; display:none; align-items:center; justify-content:center; padding:24px;
+  }
+  .policy-overlay.open{display:flex;}
+  .policy-modal{
+    width:100%; max-width:760px; max-height:86vh; background:var(--bg-panel);
+    border:1px solid var(--line); display:flex; flex-direction:column; overflow:hidden;
+  }
+  .policy-modal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px; border-bottom:1px solid var(--line); flex-shrink:0;
+  }
+  .policy-modal-head h3{font-size:16px; text-transform:uppercase; letter-spacing:0.03em; color:var(--paper);}
+  .policy-close{
+    background:transparent; border:1px solid var(--line); color:var(--paper-dim);
+    width:30px; height:30px; font-size:16px; cursor:pointer; line-height:1;
+  }
+  .policy-close:hover{border-color:var(--amber); color:var(--amber);}
+  .policy-tabs{
+    display:flex; gap:6px; padding:12px 20px 0; border-bottom:1px solid var(--line);
+    overflow-x:auto; flex-shrink:0; -webkit-overflow-scrolling:touch;
+  }
+  .policy-tabs::-webkit-scrollbar{display:none;}
+  .policy-tab{
+    background:transparent; border:1px solid var(--line); border-bottom:none; color:var(--paper-dim);
+    padding:8px 14px; font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; cursor:pointer;
+    white-space:nowrap; flex-shrink:0; margin-bottom:-1px; font-family:inherit;
+  }
+  .policy-tab.active{color:var(--amber); background:var(--bg-panel-2); border-color:var(--line);}
+  .policy-body{padding:22px 24px 28px; overflow-y:auto; font-size:12.5px; color:var(--paper-dim);}
+  .policy-pane{display:none;}
+  .policy-pane.active{display:block;}
+  .policy-pane h4{font-size:13px; text-transform:uppercase; letter-spacing:0.04em; color:var(--paper); margin:18px 0 8px;}
+  .policy-pane h4:first-child{margin-top:0;}
+  .policy-pane p{margin-bottom:11px; line-height:1.7;}
+  .policy-pane ul{margin:0 0 11px 18px; line-height:1.7;}
+  .policy-pane li{margin-bottom:5px;}
+  .policy-pane b{color:var(--paper);}
+  .policy-highlight{
+    border:1px solid var(--amber-dim); background:var(--amber-faint); padding:12px 14px;
+    font-size:12px; color:var(--paper); margin:12px 0;
+  }
+  .policy-fill{color:var(--red);}
+
+  @media(max-width:640px){
+    .policy-overlay{padding:0;}
+    .policy-modal{max-width:100%; height:100%; max-height:100%;}
+    .policy-modal-head{padding:14px 16px;}
+    .policy-tabs{padding:10px 16px 0;}
+    .policy-body{padding:18px 16px 24px;}
+  }
+
+  @media (max-width:860px){
+    .hero{grid-template-columns:1fr; padding:60px 20px;}
+    header.site{padding:16px 20px;}
+    nav.main{display:none;}
+    .catalog, .notice, footer{padding-left:20px; padding-right:20px;}
+    .signal{margin:50px 20px;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .ticker-track, .eyebrow .dot{animation:none;}
+    html{scroll-behavior:auto;}
+  }
+</style>
+</head>
+<body>
+
+<div id="boot">
+  <div id="bootLines"></div>
+</div>
+
+<canvas id="matrixRain"></canvas>
+<div class="hud-corner tl"></div>
+<div class="hud-corner tr"></div>
+<div class="hud-corner bl"></div>
+<div class="hud-corner br"></div>
+
+<div class="ticker"><div class="ticker-track">
+  <span>SDR STOCK REPLENISHED — HACKRF ONE R9</span>
+  <span>NEW: O.MG CABLE ELITE V2 IN STOCK</span>
+  <span>FLIPPER ZERO — BACK ORDER CLEARED</span>
+  <span>FREE STATIC-SAFE SHIPPING OVER ₹8,000</span>
+  <span>SDR STOCK REPLENISHED — HACKRF ONE R9</span>
+  <span>NEW: O.MG CABLE ELITE V2 IN STOCK</span>
+  <span>FLIPPER ZERO — BACK ORDER CLEARED</span>
+  <span>FREE STATIC-SAFE SHIPPING OVER ₹8,000</span>
+</div></div>
+
+<header class="site">
+  <div class="logo">
+    <div class="mark">▓</div>
+    <div class="word">DARK<b>NET</b></div>
+  </div>
+  <nav class="main">
+    <a href="#catalog">Catalog</a>
+    <a href="#">RF &amp; Wireless</a>
+    <a href="#">Dev Boards</a>
+    <a href="#">Field Notes</a>
+  </nav>
+  <button class="cart-btn" onclick="toggleCart(true)">
+    CART <span class="cart-count" id="cartCount">0</span>
+  </button>
+</header>
+
+<section class="hero">
+  <div>
+    <div class="eyebrow"><span class="dot"></span> AUTHORIZED RESEARCH &amp; AUDIT HARDWARE</div>
+    <h1 class="display hero-title">
+      <span class="glitch-wrap" id="glitchTitle" data-text="TOOLS FOR THE">Tools for the</span><br>
+      <em>bench,</em> not the<br>black market.
+    </h1>
+    <p class="hero-sub">Ten pieces of hardware we actually keep in our own kit — for wireless auditing, RFID research, embedded prototyping, and authorized red-team engagements. Every listing ships with its legitimate-use documentation.<span class="term-cursor"></span></p>
+  </div>
+  <div class="hero-meta">
+    <div class="row"><span>Catalog size</span><b>10 SKUs</b></div>
+    <div class="row"><span>Categories</span><b>RF / RFID / Embedded / Network</b></div>
+    <div class="row"><span>Intended use</span><b>Authorized testing only</b></div>
+    <div class="row"><span>Warranty</span><b>12 months, all units</b></div>
+    <div class="row"><span>Dispatch</span><b>24–48h, anti-static packed</b></div>
+  </div>
+</section>
+
+<section class="catalog" id="catalog">
+  <div class="catalog-head">
+    <div>
+      <h2 class="display">The Catalog</h2>
+      <p>Field-tested hardware, sorted by what it's actually for — not marketing category.</p>
+    </div>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" data-f="all">All</button>
+    <button class="filter-btn" data-f="rf">RF / Wireless</button>
+    <button class="filter-btn" data-f="rfid">RFID / NFC</button>
+    <button class="filter-btn" data-f="embedded">Embedded</button>
+    <button class="filter-btn" data-f="network">Network</button>
+  </div>
+
+  <div class="grid" id="productGrid"></div>
+</section>
+
+<section class="signal">
+  <div class="signal-head"><span>LIVE BENCH SIGNAL — CH.7 CAPTURE</span><b>430.250 MHz · -62 dBm</b></div>
+  <svg class="wave" viewBox="0 0 1200 70" preserveAspectRatio="none">
+    <path d="M0,35 Q20,10 40,35 T80,35 T120,20 T160,35 T200,50 T240,35 T280,8 T320,35 T360,35 T400,42 T440,35 T480,15 T520,35 T560,35 T600,55 T640,35 T680,25 T720,35 T760,35 T800,10 T840,35 T880,35 T920,45 T960,35 T1000,20 T1040,35 T1080,35 T1120,30 T1160,35 T1200,35"
+      fill="none" stroke="#00ff66" stroke-width="1.5" opacity="0.85"/>
+  </svg>
+</section>
+
+<footer>
+  <div class="fcol">
+    <h4>DARKNET</h4>
+    <div>Security research hardware</div>
+    <div>Sold for authorized use only</div>
+  </div>
+  <div class="fcol">
+    <h4>Catalog</h4>
+    <div>RF &amp; Wireless</div>
+    <div>RFID &amp; NFC</div>
+    <div>Embedded / Dev Boards</div>
+    <div>Network Access</div>
+  </div>
+  <div class="fcol">
+    <h4>Support</h4>
+    <div><a href="#" data-policy="shipping">Shipping policy</a></div>
+    <div><a href="#" data-policy="refund">Cancellation &amp; refunds</a></div>
+    <div><a href="#" data-policy="terms">Terms &amp; conditions</a></div>
+    <div><a href="#" data-policy="privacy">Privacy policy</a></div>
+    <div><a href="#" data-policy="contact">Contact us</a></div>
+  </div>
+  <div class="fcol">
+    <h4>Status</h4>
+    <div>All systems nominal</div>
+    <div>Bench signal: locked</div>
+  </div>
+</footer>
+
+<!-- ============ POLICY MODAL ============ -->
+<div class="policy-overlay" id="policyOverlay">
+  <div class="policy-modal">
+    <div class="policy-modal-head">
+      <h3 class="display">Policies</h3>
+      <button class="policy-close" id="policyClose">&times;</button>
+    </div>
+    <div class="policy-tabs">
+      <button class="policy-tab" data-pane="terms">Terms</button>
+      <button class="policy-tab" data-pane="privacy">Privacy</button>
+      <button class="policy-tab" data-pane="shipping">Shipping</button>
+      <button class="policy-tab" data-pane="refund">Refunds</button>
+      <button class="policy-tab" data-pane="contact">Contact</button>
+    </div>
+    <div class="policy-body">
+
+      <div class="policy-pane" data-pane="terms">
+        <h4>Terms &amp; Conditions</h4>
+        <p>This website is operated by <b>DARKNET</b> ("we", "us", "our"), based in Raipur, Chhattisgarh, India. By accessing or placing an order on this site, you agree to be bound by these terms.</p>
+        <h4>Use of products</h4>
+        <p>All hardware listed on this site is sold strictly for <b>authorized security research, education, and testing on systems and networks you own or have explicit written permission to test.</b> You are solely responsible for ensuring your use of any product complies with applicable law.</p>
+        <h4>Orders &amp; pricing</h4>
+        <ul>
+          <li>All prices are listed in INR (₹), inclusive of applicable taxes unless stated otherwise.</li>
+          <li>We reserve the right to refuse or cancel any order — e.g. pricing errors, suspected fraud, or stock unavailability. Any payment already captured for a cancelled order is refunded in full.</li>
+          <li>An order is confirmed only after successful payment via Razorpay.</li>
+        </ul>
+        <h4>Eligibility</h4>
+        <p>By ordering, you confirm you are at least 18 years old and legally capable of entering a binding contract.</p>
+      </div>
+
+      <div class="policy-pane" data-pane="privacy">
+        <h4>Privacy Policy</h4>
+        <p>We collect only the information needed to process and deliver your order.</p>
+        <h4>Information we collect</h4>
+        <ul>
+          <li>Name, email, phone number, and shipping address — provided by you at checkout.</li>
+          <li>Order and payment details. <b>We never see or store your card, UPI, or bank details</b> — all payment info is handled directly by Razorpay under their PCI-DSS compliant systems.</li>
+        </ul>
+        <h4>How we use it</h4>
+        <ul>
+          <li>To process, fulfill, and ship your order, and contact you about it.</li>
+          <li>We do not sell or rent your personal information to anyone.</li>
+        </ul>
+        <h4>Your rights</h4>
+        <p>Request access, correction, or deletion of your data anytime at <span class="policy-fill">sunny22101082@gmail.com</span>.</p>
+      </div>
+
+      <div class="policy-pane" data-pane="shipping">
+        <h4>Shipping Policy</h4>
+        <ul>
+          <li><b>Processing time:</b> Orders are dispatched within 24–48 hours of payment confirmation, anti-static packed.</li>
+          <li><b>Delivery time:</b> Typically <span class="policy-fill">3–7 business days</span>, via our courier partner(s).</li>
+          <li><b>Shipping charges:</b> <span class="policy-fill">Flat ₹99, free on orders above ₹2,999</span>, shown at checkout.</li>
+          <li><b>Tracking:</b> Shared via email/SMS once your order ships.</li>
+          <li><b>Coverage:</b> We currently ship across India only.</li>
+          <li>We're not responsible for delays from the courier, an incorrect address provided by the customer, or force majeure events.</li>
+        </ul>
+      </div>
+
+      <div class="policy-pane" data-pane="refund">
+        <h4>Cancellation &amp; Refund Policy</h4>
+        <h4>Order cancellation</h4>
+        <ul>
+          <li>Orders can be cancelled free of charge <b>only before they are shipped.</b> Contact us immediately at <span class="policy-fill">sunny22101082@gmail.com</span> with your order ID.</li>
+          <li>Once an order is marked "Shipped," it can no longer be cancelled.</li>
+        </ul>
+        <div class="policy-highlight">
+          <b>Once an order is shipped, it is final — no refund, return, or exchange</b> will be provided for that order, except for a product that arrives dead-on-arrival or physically damaged in transit (see below).
+        </div>
+        <h4>Damaged or defective items</h4>
+        <p>Contact us within <span class="policy-fill">48 hours</span> of delivery with your order ID and photos/video of the damaged item and packaging. Valid claims are resolved via replacement or store credit — the only exception to the no-refund-after-shipping rule above.</p>
+        <h4>Warranty</h4>
+        <p>All units carry a 12-month warranty against genuine hardware defects (not physical damage, misuse, or unauthorized firmware modification), handled via repair or replacement, not refund.</p>
+        <h4>Refund processing</h4>
+        <p>Where a refund is approved (pre-shipping cancellation, payment failure, or duplicate charge), it's credited to your original payment method via Razorpay within <span class="policy-fill">5–7 business days</span>.</p>
+      </div>
+
+      <div class="policy-pane" data-pane="contact">
+        <h4>Contact Us</h4>
+        <p><b>Business name:</b> <span class="policy-fill">DARKNET</span></p>
+        <p><b>Registered address:</b> <span class="policy-fill">Raipur, Chhattisgarh, 493114, India</span></p>
+        <p><b>Support email:</b> <span class="policy-fill">sunny22101082@gmail.com</span></p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="toggleCart(false)"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <h3>Your Cart</h3>
+    <button class="close-btn" onclick="toggleCart(false)">&times;</button>
+  </div>
+  <div class="drawer-items" id="drawerItems"></div>
+  <div class="drawer-foot">
+    <div class="total"><span>Total</span><b id="cartTotal">₹0</b></div>
+    <button class="checkout-btn" id="openCheckoutBtn">Checkout</button>
+  </div>
+</div>
+
+<!-- ============ CHECKOUT MODAL ============ -->
+<div class="policy-overlay" id="checkoutOverlay">
+  <div class="policy-modal checkout-modal">
+    <div class="policy-modal-head">
+      <h3 class="display">Checkout</h3>
+      <button class="policy-close" id="checkoutClose">&times;</button>
+    </div>
+    <div class="policy-body">
+      <div id="checkoutTestBanner" class="checkout-test-banner">TEST MODE — no real payment will be captured</div>
+      <form id="checkoutForm" class="checkout-form">
+        <label>Full name
+          <input type="text" name="customer_name" required autocomplete="name">
+        </label>
+        <label>Email
+          <input type="email" name="customer_email" required autocomplete="email">
+        </label>
+        <label>Phone
+          <input type="tel" name="customer_phone" required autocomplete="tel" pattern="[0-9+ ]{7,15}">
+        </label>
+        <label>Shipping address
+          <textarea name="shipping_address" rows="3" required autocomplete="street-address"></textarea>
+        </label>
+        <div class="checkout-summary">
+          <span>Order total</span>
+          <b id="checkoutTotal">₹0</b>
+        </div>
+        <div id="checkoutError" class="checkout-error" style="display:none;"></div>
+        <button type="submit" class="checkout-btn" id="checkoutPayBtn">Pay with Razorpay</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// Fallback catalog — used only if Supabase isn't configured yet or the fetch fails,
+// so the storefront never shows up empty. Once connected, live data from the
+// `products` table (edited via admin.html) takes over automatically.
+const fallbackProducts = [
+  {id:'flipper-zero', name:'Flipper Zero', cat:'rfid', tag:'BESTSELLER', glyph:'▤',
+   desc:'Portable multi-tool for RFID, sub-GHz, NFC, infrared and GPIO research and CTF work.',
+   specs:[['Radio','Sub-1GHz, 125kHz RFID, NFC'],['Display','1.4" monochrome'],['Battery','2000mAh']],
+   price:16999},
+  {id:'arduino-uno', name:'Arduino Uno R3', cat:'embedded', tag:'', glyph:'▦',
+   desc:'The reference microcontroller board for building custom sensors, rigs, and PoC hardware.',
+   specs:[['MCU','ATmega328P'],['I/O','14 digital, 6 analog'],['Interface','USB-B']],
+   price:1899},
+  {id:'hackrf-one', name:'HackRF One', cat:'rf', tag:'RESTOCKED', glyph:'▧',
+   desc:'Open-source SDR platform for transmitting and receiving 1MHz–6GHz signals in the lab.',
+   specs:[['Range','1 MHz – 6 GHz'],['Sample rate','20 Msps'],['Bus','USB 2.0']],
+   price:29999},
+  {id:'rpi-4', name:'Raspberry Pi 4 (8GB)', cat:'embedded', tag:'', glyph:'▥',
+   desc:'Single-board computer used as the brains for portable pentest rigs and packet-capture nodes.',
+   specs:[['CPU','Quad-core 1.5GHz'],['RAM','8GB'],['Ports','GbE, USB 3.0 x2']],
+   price:8499},
+  {id:'rubber-ducky', name:'USB Rubber Ducky', cat:'network', tag:'', glyph:'▨',
+   desc:'Keystroke-injection platform used to demonstrate HID-based attack surfaces in authorized tests.',
+   specs:[['Payload lang','DuckyScript 3.0'],['Storage','microSD, up to 128GB'],['Form','USB-A']],
+   price:6499},
+  {id:'wifi-pineapple', name:'WiFi Pineapple Mark VII', cat:'rf', tag:'', glyph:'▩',
+   desc:'Rogue-AP and wireless auditing platform for authorized Wi-Fi security assessments.',
+   specs:[['Radios','Dual-band 2.4/5GHz'],['CPU','MT7621 580MHz'],['Interface','Web dashboard']],
+   price:24999},
+  {id:'proxmark3', name:'Proxmark3 RDV4', cat:'rfid', tag:'', glyph:'◈',
+   desc:'The reference tool for RFID/NFC card research — reading, cloning-for-testing, and protocol analysis.',
+   specs:[['Freqs','125kHz & 13.56MHz'],['Storage','256KB flash + BT add-on'],['Battery','Optional onboard']],
+   price:32999},
+  {id:'ubertooth', name:'Ubertooth One', cat:'rf', tag:'', glyph:'◫',
+   desc:'Open-source Bluetooth monitoring platform for classic BT and BLE protocol research.',
+   specs:[['Protocol','Bluetooth 2.4GHz'],['Chipset','LPC175x ARM'],['Output','USB streaming']],
+   price:14999},
+  {id:'lan-turtle', name:'LAN Turtle', cat:'network', tag:'', glyph:'▣',
+   desc:'Covert Ethernet access tool for authorized network reconnaissance and remote-access testing.',
+   specs:[['Form','Disguised USB-Ethernet'],['OS','OpenWrt-based'],['Access','SSH-managed']],
+   price:9999},
+  {id:'omg-cable', name:'O.MG Cable Elite V2', cat:'network', tag:'NEW', glyph:'▮',
+   desc:'Lightning/USB-C cable implant for demonstrating physical-access and HID attack scenarios.',
+   specs:[['Trigger','Wireless / geofence'],['Payload','Keystroke injection'],['Look','Stock cable form']],
+   price:11999},
+];
+
+const grid = document.getElementById('productGrid');
+let cart = {};
+let products = fallbackProducts;
+
+function money(n){ return '₹' + n.toLocaleString('en-IN'); }
+
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// ---------- load live catalog from Supabase (falls back to the static list above) ----------
+async function loadProducts(){
+  try {
+    if (!window.supabase || SUPABASE_URL.includes('YOUR-PROJECT')) return; // not configured yet
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await client
+      .from('products')
+      .select('*')
+      .eq('active', true)
+      .order('created_at');
+    if (error || !data || !data.length) return; // keep fallback catalog
+    products = data.map(p => ({
+      id: p.id, name: p.name, cat: p.category, tag: p.tag || '',
+      glyph: p.glyph || '◆', desc: p.description || '',
+      specs: p.specs || [], price: p.price, image_url: p.image_url || ''
+    }));
+  } catch(e) {
+    console.error('Could not load live catalog, showing built-in list instead:', e);
+  } finally {
+    renderProducts(document.querySelector('.filter-btn.active')?.dataset.f || 'all');
+  }
+}
+
+function renderProducts(filter='all'){
+  grid.innerHTML = '';
+  products.filter(p => filter==='all' || p.cat===filter).forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-top">
+        <span class="sku">SKU/${p.id.toUpperCase()}</span>
+        ${p.tag ? `<span class="tag${p.tag==='NEW'?' new':''}">${p.tag}</span>` : '<span></span>'}
+      </div>
+      <div class="glyph">${p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="${escapeHtml(p.name)}">` : p.glyph}</div>
+      <h3>${p.name}</h3>
+      <div class="desc">${p.desc}</div>
+      <div class="spec-list">
+        ${p.specs.map(s => `<div><span>${s[0]}</span><b>${s[1]}</b></div>`).join('')}
+      </div>
+      <div class="card-foot">
+        <div class="price">${money(p.price)}<br><small>incl. taxes</small></div>
+        <button class="add-btn" data-id="${p.id}">Add</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('.add-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      addToCart(btn.dataset.id);
+      btn.textContent = 'Added ✓';
+      btn.classList.add('added');
+      setTimeout(() => { btn.textContent = 'Add'; btn.classList.remove('added'); }, 900);
+    });
+  });
+}
+
+function addToCart(id){
+  cart[id] = (cart[id] || 0) + 1;
+  updateCartUI();
+}
+function removeFromCart(id){
+  delete cart[id];
+  updateCartUI();
+}
+function updateCartUI(){
+  const items = Object.entries(cart);
+  document.getElementById('cartCount').textContent = items.reduce((a,[,q])=>a+q,0);
+  const container = document.getElementById('drawerItems');
+  if(items.length === 0){
+    container.innerHTML = '<div class="empty-cart">Cart is empty.<br>Add hardware from the catalog.</div>';
+  } else {
+    container.innerHTML = items.map(([id, qty]) => {
+      const p = products.find(x => x.id === id);
+      return `<div class="drawer-item">
+        <div>
+          <div class="name">${p.name}</div>
+          <div class="qty">Qty ${qty} · ${money(p.price)}</div>
+          <button class="rm" onclick="removeFromCart('${id}')">Remove</button>
+        </div>
+        <div>${money(p.price*qty)}</div>
+      </div>`;
+    }).join('');
+  }
+  const total = items.reduce((sum,[id,qty]) => sum + products.find(p=>p.id===id).price*qty, 0);
+  document.getElementById('cartTotal').textContent = money(total);
+}
+
+function toggleCart(open){
+  document.getElementById('drawer').classList.toggle('open', open);
+  document.getElementById('overlay').classList.toggle('open', open);
+}
+
+/* ============ CHECKOUT + RAZORPAY ============ */
+(function checkoutFlow(){
+  const openBtn = document.getElementById('openCheckoutBtn');
+  const overlay = document.getElementById('checkoutOverlay');
+  const closeBtn = document.getElementById('checkoutClose');
+  const form = document.getElementById('checkoutForm');
+  const payBtn = document.getElementById('checkoutPayBtn');
+  const errorBox = document.getElementById('checkoutError');
+  const totalEl = document.getElementById('checkoutTotal');
+  const testBanner = document.getElementById('checkoutTestBanner');
+
+  if (!openBtn) return; // markup not present, skip silently
+
+  testBanner.style.display = RAZORPAY_TEST_MODE ? 'block' : 'none';
+
+  function cartTotal(){
+    return Object.entries(cart).reduce((sum,[id,qty]) => {
+      const p = products.find(x => x.id === id);
+      return sum + (p ? p.price * qty : 0);
+    }, 0);
+  }
+
+  function showError(msg){
+    errorBox.textContent = msg;
+    errorBox.style.display = 'block';
+  }
+  function clearError(){
+    errorBox.style.display = 'none';
+    errorBox.textContent = '';
+  }
+
+  function openCheckout(){
+    if (Object.keys(cart).length === 0){
+      alert('Your cart is empty — add hardware from the catalog first.');
+      return;
+    }
+    clearError();
+    totalEl.textContent = money(cartTotal());
+    toggleCart(false);
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCheckout(){
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  openBtn.addEventListener('click', openCheckout);
+  closeBtn.addEventListener('click', closeCheckout);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCheckout(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('open')) closeCheckout(); });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearError();
+
+    if (typeof Razorpay === 'undefined'){
+      showError('Payment library failed to load. Check your connection and try again.');
+      return;
+    }
+    if (!RAZORPAY_KEY_ID || RAZORPAY_KEY_ID.includes('XXXXXXXX')){
+      showError('Payments are not fully configured yet — Razorpay Key ID is missing. Contact the store owner.');
+      return;
+    }
+    if (!window.supabase || SUPABASE_URL.includes('YOUR-PROJECT')){
+      showError('Store backend is not configured yet. Contact the store owner.');
+      return;
+    }
+
+    const fd = new FormData(form);
+    const customer = {
+      customer_name: fd.get('customer_name').trim(),
+      customer_email: fd.get('customer_email').trim(),
+      customer_phone: fd.get('customer_phone').trim(),
+      shipping_address: fd.get('shipping_address').trim(),
+    };
+    const total = cartTotal();
+    if (total <= 0){
+      showError('Your cart is empty.');
+      return;
+    }
+
+    payBtn.disabled = true;
+    payBtn.textContent = 'Preparing order…';
+
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    try {
+      // 1) Create the order + line items via the create_order() RPC.
+      //    This runs server-side (Postgres function), re-prices everything
+      //    from the products table, and hands back just the new order id —
+      //    the anon key never gets direct read/write access to the orders
+      //    table itself (see schema.sql for the RLS policies).
+      const items = Object.entries(cart).map(([id, qty]) => ({ product_id: id, quantity: qty }));
+      const { data: rpcRows, error: orderErr } = await client.rpc('create_order', {
+        p_customer_name: customer.customer_name,
+        p_customer_email: customer.customer_email,
+        p_customer_phone: customer.customer_phone,
+        p_shipping_address: customer.shipping_address,
+        p_items: items,
+      });
+      if (orderErr) throw orderErr;
+      const orderRow = rpcRows && rpcRows[0];
+      if (!orderRow) throw new Error('Order could not be created.');
+
+      // 2) Open Razorpay Checkout
+      payBtn.textContent = 'Opening payment…';
+      const rzp = new Razorpay({
+        key: RAZORPAY_KEY_ID,
+        amount: total * 100, // paise
+        currency: 'INR',
+        name: 'DARKNET',
+        description: `Order ${orderRow.order_id.slice(0, 8)}`,
+        prefill: {
+          name: customer.customer_name,
+          email: customer.customer_email,
+          contact: customer.customer_phone,
+        },
+        notes: {
+          order_id: orderRow.order_id,
+        },
+        theme: { color: '#00ff66' },
+        handler: async function (response){
+          // NOTE: this confirms payment on the client only. For production,
+          // verify response.razorpay_payment_id / order_id / signature on a
+          // server (e.g. a Supabase Edge Function holding your Key Secret)
+          // before marking the order paid — see the comment near
+          // RAZORPAY_KEY_ID at the top of this file.
+          try {
+            await client.rpc('mark_order_paid', { p_order_id: orderRow.order_id });
+          } catch(err){
+            console.error('Could not update order status:', err);
+          }
+          cart = {};
+          updateCartUI();
+          form.reset();
+          closeCheckout();
+          alert('Payment successful! Order ' + orderRow.order_id.slice(0, 8) + ' is confirmed. A confirmation has been recorded — check your email for updates.');
+        },
+        modal: {
+          ondismiss: function(){
+            payBtn.disabled = false;
+            payBtn.textContent = 'Pay with Razorpay';
+          }
+        }
+      });
+      rzp.on('payment.failed', function (response){
+        showError('Payment failed: ' + (response.error && response.error.description ? response.error.description : 'please try again.'));
+        payBtn.disabled = false;
+        payBtn.textContent = 'Pay with Razorpay';
+      });
+      rzp.open();
+      payBtn.textContent = 'Pay with Razorpay';
+      payBtn.disabled = false;
+
+    } catch (err){
+      console.error(err);
+      showError('Could not start checkout: ' + (err.message || 'unknown error') + '. Please try again.');
+      payBtn.disabled = false;
+      payBtn.textContent = 'Pay with Razorpay';
+    }
+  });
+})();
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderProducts(btn.dataset.f);
+  });
+});
+
+renderProducts();       // paint immediately with the fallback catalog, no flash of empty page
+loadProducts();         // then swap in the live catalog from Supabase, if configured
+updateCartUI();
+
+/* ---------- boot sequence ---------- */
+const bootLines = [
+  '> booting darknet terminal...',
+  '> verifying operator credentials...     [ OK ]',
+  '> mounting hardware catalog...          [ OK ]',
+  '> loading acceptable-use policy...      [ OK ]',
+  '> checking bench signal, ch.7...        [ LOCKED ]',
+  '> access granted.',
+  '',
+  '> welcome back.'
+];
+(function boot(){
+  const el = document.getElementById('bootLines');
+  const bootEl = document.getElementById('boot');
+  let text = '';
+  let li = 0, ci = 0;
+  function typeLine(){
+    if(li >= bootLines.length){
+      el.innerHTML = text + '<span class="cursor-blink"></span>';
+      setTimeout(() => bootEl.classList.add('hidden'), 550);
+      return;
+    }
+    const line = bootLines[li];
+    if(ci <= line.length){
+      el.innerHTML = text + line.slice(0, ci) + '<span class="cursor-blink"></span>';
+      ci++;
+      setTimeout(typeLine, line === '' ? 40 : 8 + Math.random()*14);
+    } else {
+      text += line + '\n';
+      li++; ci = 0;
+      setTimeout(typeLine, 90);
+    }
+  }
+  typeLine();
+})();
+
+/* ---------- matrix rain ---------- */
+(function matrixRain(){
+  const canvas = document.getElementById('matrixRain');
+  const ctx = canvas.getContext('2d');
+  let w, h, cols, drops;
+  const chars = '01アイウエオカキクケコサシスセソタチツテト$#%&{}<>/\\';
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    cols = Math.floor(w / 16);
+    drops = new Array(cols).fill(0).map(() => Math.random() * -50);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+  function draw(){
+    ctx.fillStyle = 'rgba(5,8,5,0.10)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#00ff66';
+    ctx.font = '14px IBM Plex Mono, monospace';
+    for(let i = 0; i < cols; i++){
+      const char = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(char, i * 16, drops[i] * 16);
+      if(drops[i] * 16 > h && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+    requestAnimationFrame(draw);
+  }
+  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    draw();
+  }
+})();
+
+/* ---------- policy modal ---------- */
+(function policyModal(){
+  const overlay = document.getElementById('policyOverlay');
+  const tabs = document.querySelectorAll('.policy-tab');
+  const panes = document.querySelectorAll('.policy-pane');
+
+  function openPolicy(name){
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.pane === name));
+    panes.forEach(p => p.classList.toggle('active', p.dataset.pane === name));
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    overlay.querySelector('.policy-body').scrollTop = 0;
+  }
+  function closePolicy(){
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll('[data-policy]').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      openPolicy(link.dataset.policy);
+    });
+  });
+  tabs.forEach(t => t.addEventListener('click', () => openPolicy(t.dataset.pane)));
+  document.getElementById('policyClose').addEventListener('click', closePolicy);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closePolicy(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePolicy(); });
+})();
+
+/* ---------- periodic glitch on hero title ---------- */
+(function glitchLoop(){
+  const t = document.getElementById('glitchTitle');
+  if(!t) return;
+  setInterval(() => {
+    t.classList.add('active');
+    setTimeout(() => t.classList.remove('active'), 260);
+  }, 3400);
+})();
+</script>
+
+</body>
+</html>
   .card h3{font-size:19px; text-transform:uppercase; letter-spacing:0.01em; color:var(--paper);}
   .card .desc{font-size:12px; color:var(--paper-dim); line-height:1.6; min-height:52px;}
   .spec-list{font-size:10.5px; color:var(--paper-dim); display:flex; flex-direction:column; gap:4px; border-top:1px dashed var(--line); padding-top:10px;}
